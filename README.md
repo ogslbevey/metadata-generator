@@ -69,13 +69,6 @@ observia_backend_metadata/
 
 ## Usage
 
-### Local Development
-
-Run the API locally:
-
-```bash
-poetry run uvicorn app.main:app --reload
-```
 
 ### Using Docker
 
