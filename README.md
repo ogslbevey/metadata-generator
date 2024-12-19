@@ -59,13 +59,7 @@ observia_backend_metadata/
    cd observia-backend-metadata
    ```
 
-2. Install dependencies using Poetry:
-
-   ```bash
-   poetry install
-   ```
-
-3. Set up environment variables:
+2. Set up environment variables:
 
    Create a `.env` file at the root of the project and define the following variables:
 
