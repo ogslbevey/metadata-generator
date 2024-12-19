@@ -1,0 +1,50 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Poetry files
+poetry.lock
+
+# Virtual environment
+.venv/
+.env/
+
+# Docker files
+*.log
+docker-compose.override.yml
+.env.docker
+
+# VS Code settings
+.vscode/
+*.code-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+.coverage
+htmlcov/
+.tox/
+
+# Python bytecode files
+*.swp
+*.swo
+
+# Ignore caches and logs
+*.log
+.cache/
+*.pytest_cache/
+
+# Ignore build artifacts
+*.egg-info/
+dist/
+build/
+
+# Ignore environment-specific files
+*.env
+
+# Ignore documentation builds
+docs/_build/
