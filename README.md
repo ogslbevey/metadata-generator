@@ -84,5 +84,4 @@ observia_backend_metadata/
 
 ## Contributing
 
-
 ## License
