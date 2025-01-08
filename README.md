@@ -1,4 +1,3 @@
-
 # Observia Backend Metadata API
 
 ## Overview
@@ -71,7 +70,6 @@ observia_backend_metadata/
 
 ## Usage
 
-
 ### Using Docker
 
 1. Build and start the containers:
@@ -83,6 +81,21 @@ observia_backend_metadata/
 2. Access the API documentation:
 
    Open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
+
+### Continuous Integration
+
+This project is maintained via the [SLGO selfhosted gitlab depository](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata).
+
+Every changes to the repository are replicated on the [GitHub repository observia-backend-metadata](https://github.com/OGSL-SLGO/observia-backend-metadata/tree/main).
+
+Any changes to main branch then trigger a redeployment of the Container as a service on a Google Cloud Run and made available at [here](https://observia-backend-metadata-797895507841.us-central1.run.app).
+
+```mermaid
+flowchart TD
+    A[SLGO GitLab] -->B[SLGO Github]
+    B --> C(main branch)
+    C --> D[Google Cloud Run ]
+```
 
 ## Contributing
 
