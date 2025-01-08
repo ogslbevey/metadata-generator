@@ -13,6 +13,8 @@ The Observia Backend Metadata API is a FastAPI-based application designed for ma
 - Ready for containerized deployment using **Docker Compose**.
 - Includes development-friendly tools like Poetry for dependency management.
 
+The system is deployed from SLGO's GitLab to Github to a Google Cloud Run service.
+
 ## Project Structure
 
 ```
