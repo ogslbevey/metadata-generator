@@ -88,7 +88,7 @@ observia_backend_metadata/
 This project is maintained through the [SLGO self-hosted GitLab repository](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata).
 
 #### Mirroring
-Changes made to the GitLab repository are automatically mirrored to the [GitHub repository](https://github.com/OGSL-SLGO/observia-backend-metadata/tree/main) using GitLab's repository mirroring feature (see settings [here]((http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata/-/settings/repository)).
+Changes made to the GitLab repository are automatically mirrored to the [GitHub repository](https://github.com/OGSL-SLGO/observia-backend-metadata/tree/main) using GitLab's repository mirroring feature (see settings -> repository -> Mirroring repositories [here](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata/-/settings/repository)).
 
 Any updates to the GitHub repository `main` branch trigger a redeployment of the container as a service on Google Cloud Run, which can be accessed [here](https://observia-backend-metadata-797895507841.us-central1.run.app).
 
