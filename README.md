@@ -84,13 +84,16 @@ observia_backend_metadata/
 
 ### CI/CD
 
-This project is maintained via the [SLGO selfhosted gitlab depository](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata).
+#### Maintenance
+This project is maintained through the [SLGO self-hosted GitLab repository](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata).
 
-Every changes to the gitlab repository are replicated automatically via the [gitlab repositories mirroring feature](http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata/-/settings/repository) on the [GitHub repository observia-backend-metadata](https://github.com/OGSL-SLGO/observia-backend-metadata/tree/main).
+#### Mirroring
+Changes made to the GitLab repository are automatically mirrored to the [GitHub repository](https://github.com/OGSL-SLGO/observia-backend-metadata/tree/main) using GitLab's repository mirroring feature (see settings [here]((http://10.0.4.9:1410/sandbox-ogsl/observia_backend_metadata/-/settings/repository)).
 
-Any changes to main branch then trigger a redeployment of the Container as a service on a Google Cloud Run and made available [here](https://observia-backend-metadata-797895507841.us-central1.run.app).
+Any updates to the GitHub repository `main` branch trigger a redeployment of the container as a service on Google Cloud Run, which can be accessed [here](https://observia-backend-metadata-797895507841.us-central1.run.app).
 
-Google Cloud Run takes care to sync automatically the latest changes to the branch to the deployment via a github trigger [here](https://console.cloud.google.com/run?referrer=search&authuser=0&hl=en&project=observia&supportedpurview=project) and environment variables are defined via the Google Secret Manager Service [here](https://console.cloud.google.com/security/secret-manager?referrer=search&authuser=0&hl=en&project=observia&supportedpurview=project).
+#### Google Cloud Run
+Google Cloud Run ensures that the latest changes are synced to the deployment via a GitHub trigger, which can be managed [here](https://console.cloud.google.com/run?referrer=search&authuser=0&hl=en&project=observia&supportedpurview=project). Environment variables are securely managed using the Google Secret Manager Service, accessible [here](https://console.cloud.google.com/security/secret-manager?referrer=search&authuser=0&hl=en&project=observia&supportedpurview=project).
 
 ```mermaid
 flowchart TD
