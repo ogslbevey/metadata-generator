@@ -21,27 +21,32 @@ observia_backend_metadata/
 │   ├── api/
 │   │   └── v1/
 │   │       ├── __init__.py
-│   │       └── endpoints.py
+│   │       ├── endpoints.py
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── chain_setup.py
-│   │   ├── models.py
-│   │   └── prompts.py
+│   │   ├── chain_setup_eov.py
+│   │   ├── chain_setup_metadata.py
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── metadata.py
-│   │   └── eov.py
+│   │   ├── eov.py
+│   │   ├── feedback.py
 │   ├── services/
+│   │   ├── __init__.py
+│   │   ├── metadata_transform.py
 │   ├── utils/
-│   │   └── helpers.py
-│   └── __init__.py
+│   │   ├── __init__.py
+│   │   ├── helpers.py
 ├── main.py
 ├── tests/
-├── Dockerfile
+│   ├── __init__.py
+│   ├── test_api.py
+├── Dockerfile.api
 ├── docker-compose.yml
 ├── poetry.lock
 ├── pyproject.toml
 └── README.md
+
 ```
 
 ## Prerequisites
