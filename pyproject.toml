@@ -11,6 +11,9 @@ langchain = "^0.3.13"
 langchain-cli = "^0.0.35"
 langchain-openai = "^0.2.12"
 httpx = "0.23.0"
+mlflow = "^2.19.0"
+langchain-community = "^0.3.13" 
+pandas = "^2.2.3"
 
 
 [build-system]
