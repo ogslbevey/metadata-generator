@@ -68,7 +68,7 @@ def submit_feedback(feedback: UserFeedback):
         print("Received Payload:", feedback.dict())
 
         # Set up MLflow experiment
-        experiment_name = "User Feedback"
+        experiment_name = "User Feedback - EOVs"
         experiment = mlflow.get_experiment_by_name(experiment_name)
 
         if experiment and experiment.lifecycle_stage == "deleted":
@@ -80,9 +80,18 @@ def submit_feedback(feedback: UserFeedback):
 
         # Start an MLflow run
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        run_name = f"User Feedback {current_time}"
+        run_name = f"EOVs {current_time}"
 
         with mlflow.start_run(run_name=run_name) as run:
+
+            # Save feedback data
+            feedback_from_predicted_eovs = [item.dict() for item in feedback.feedback]
+            missing_eovs_with_comments = [item.dict() for item in feedback.missing_eovs]
+
+            # Log the JSON file to MLflow
+            mlflow.log_dict(feedback_from_predicted_eovs, "raw_feedback_data/feedback_from_predicted_eovs.json")
+            mlflow.log_dict(missing_eovs_with_comments, "raw_feedback_data/feedback_missing_eovs.json")
+
             # Log metadata and context
             mlflow.log_param("file_name", feedback.file_name)
             mlflow.log_param("file_revision_date", feedback.revision_date)
@@ -99,7 +108,7 @@ def submit_feedback(feedback: UserFeedback):
             # Identify confusion matrix components
             all_possible_eovs = set(POSSIBLE_EOVS)
             true_positives = [item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "yes"]
-            false_negatives = [eov for eov in feedback.missing_eovs if eov in POSSIBLE_EOVS]
+            false_negatives = [item.eov for item in feedback.missing_eovs if item.eov in POSSIBLE_EOVS]
             false_positives = [item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "no"]
             true_negatives = list(all_possible_eovs - set(true_positives) - set(false_negatives) - set(false_positives))
 
@@ -127,11 +136,17 @@ def submit_feedback(feedback: UserFeedback):
             eval_df = pd.DataFrame(eval_data)
 
             # Save evaluation table
-            evaluation_dir = "evaluation"
-            os.makedirs(evaluation_dir, exist_ok=True)
-            eval_table_path = os.path.join(evaluation_dir, "evaluation_table.csv")
+            # Ensure the evaluation directory exists
+            os.makedirs("evaluation", exist_ok=True)
+
+            # Save the evaluation table to a CSV file
+            eval_table_path = "evaluation/evaluation_table.csv"
             eval_df.to_csv(eval_table_path, index=False)
-            mlflow.log_artifact(eval_table_path)
+
+            # Log the CSV file as an artifact
+            #mlflow.log_artifact(eval_table_path)
+            mlflow.log_artifact(eval_table_path, artifact_path="evaluation")
+
 
             # Log confusion matrix components
             conf_matrix_artifact = {
