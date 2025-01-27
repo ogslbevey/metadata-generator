@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 # Define schemas for feedback items and user feedback
 class FeedbackItem(BaseModel):
@@ -8,12 +8,16 @@ class FeedbackItem(BaseModel):
     justification: Optional[str] = None
 
 
+class MissingEOVItem(BaseModel):
+    eov: str
+    comment: Optional[str] = None
+
+
 class UserFeedback(BaseModel):
     file_name: str
     revision_date: str
     feedback: List[FeedbackItem]
-    missing_eovs: List[str]
-    response_time: float
+    missing_eovs: List[MissingEOVItem]
     user_context: str
 
 
