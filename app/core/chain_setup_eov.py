@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
 from app.schemas.eov import EOVWithCitations
 from langchain_community.callbacks import MlflowCallbackHandler
-import mlflow.models  # Import MLflow models
+import mlflow.models
 from langchain_openai import ChatOpenAI
 
 # 1. Model configuration
@@ -13,7 +13,7 @@ model_eov = ChatOpenAI(
 )
 
 # 2. Define the EOV-specific prompt
-prompt_eov = f'''
+prompt_eov_v1 = f'''
 
     Vous êtes un expert pour identifier des variables océaniques essentielles (EOV) à partir de textes maritimes.
 
@@ -121,7 +121,7 @@ prompt_eov = f'''
 
 # 3. Create a ChatPromptTemplate for EOV processing
 prompt_template_eov = ChatPromptTemplate.from_messages([
-    ('system', prompt_eov),
+    ('system', prompt_eov_v1),
     ('user', '{text}')
 ])
 

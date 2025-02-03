@@ -1,7 +1,10 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 
-# Define schemas for feedback items and user feedback
+# =============================================================================
+# FEEDBACK ITEM SCHEMAS
+# =============================================================================
+
 class FeedbackItem(BaseModel):
     eov: str
     accept: str
@@ -13,7 +16,23 @@ class MissingEOVItem(BaseModel):
     comment: Optional[str] = None
 
 
-class UserFeedback(BaseModel):
+class KeywordFeedbackItem(BaseModel):
+    keyword: str
+    accept: str  # "accept" or "reject"
+    justification: Optional[str] = None
+
+
+class MetadataFeedbackItem(BaseModel):
+    metadata_field: str
+    accept: str
+    user_correction: Optional[str] = None
+
+
+# =============================================================================
+# USER FEEDBACK SCHEMAS
+# =============================================================================
+
+class UserFeedback_EOV(BaseModel):
     file_name: str
     revision_date: str
     feedback: List[FeedbackItem]
@@ -21,7 +40,18 @@ class UserFeedback(BaseModel):
     user_context: str
 
 
-# Predefined list of possible EOVs
+class MetadataFeedback(BaseModel):
+    file_name: str
+    revision_date: str
+    metadata_feedback: List[MetadataFeedbackItem]
+    keywords_feedback: Dict[str, List[KeywordFeedbackItem]]
+    user_context: str
+
+
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
 POSSIBLE_EOVS = [
     'État de la mer', 'Contraintes sur la surface océanique', 'Glace de mer', 'Niveau marin',
     'Température de surface', 'Température sous la surface', 'Courants de surface',

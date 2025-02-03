@@ -1,21 +1,23 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
-# 1. Base Model for Translated Text
-
+# =============================================================================
+# BASE MODELS FOR TRANSLATED TEXT
+# =============================================================================
 
 class TranslatedText(BaseModel):
     en: str
     fr: str
-    translations: Dict[str, 'Translation']  # Reusable class for translations
+    translations: Dict[str, 'Translation']
 
 
 class Translation(BaseModel):
     message: str
     verified: bool
 
-# 2. Use the TranslatedText for Common Fields
-
+# =============================================================================
+# COMMON TRANSLATED FIELDS
+# =============================================================================
 
 class SummaryTranslated(BaseModel):
     en: str
@@ -56,8 +58,9 @@ class InstrumentDescription(TranslatedText):
 class InstrumentType(TranslatedText):
     pass
 
-# 3. Models that Reuse the Common Translated Fields
-
+# =============================================================================
+# COMPOSITE MODELS USING TRANSLATED FIELDS
+# =============================================================================
 
 class MapDescription(BaseModel):
     description: DescriptionWithTranslations
@@ -134,15 +137,17 @@ class Instrument(BaseModel):
     type: InstrumentType
     version: str
 
-# 4. Keywords Model Simplified
-
+# =============================================================================
+# KEYWORDS MODEL (SIMPLIFIED)
+# =============================================================================
 
 class Keywords(BaseModel):
     en: List[str]
     fr: List[str]
 
-# 5. Metadata Schema Models
-
+# =============================================================================
+# METADATA SCHEMA MODELS
+# =============================================================================
 
 class MetadataSchemaCIOOS(BaseModel):
     title: str
