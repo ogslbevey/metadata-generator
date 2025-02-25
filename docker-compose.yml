@@ -1,12 +1,10 @@
 version: "3.8"
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
+  api:
+    build: .
+    container_name: observia-backend_metadata
     ports:
       - "8000:8000"
     env_file:
       - .env
-    # Rely on the Dockerfile CMD, so we don't need a 'command' override here.
