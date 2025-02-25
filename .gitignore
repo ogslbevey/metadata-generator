@@ -5,7 +5,7 @@ __pycache__/
 *.pyd
 
 # Poetry files
-poetry.lock
+#poetry.lock
 
 # Virtual environment
 .venv/
