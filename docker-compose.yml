@@ -9,4 +9,4 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    command: ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # Rely on the Dockerfile CMD, so we don't need a 'command' override here.
