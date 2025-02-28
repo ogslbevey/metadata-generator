@@ -10,6 +10,9 @@ from mlflow.langchain.langchain_tracer import MlflowLangchainTracer
 from datetime import datetime
 import os
 import difflib
+import sentry_sdk
+from sentry_sdk import capture_exception
+
 
 # Core schemas and services
 from app.schemas.metadata import MetadataSchemaCIOOS
@@ -21,8 +24,18 @@ from app.core.chain_setup_metadata import chain_MetadataSchemaCIOOS
 # Utilities
 from app.utils.helpers import evaluate_keyword_feedback
 
+SENTRY_DSN = os.getenv('SENTRY_DSN')
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+
 # Initialize MLflow
-mlflow.set_tracking_uri("http://host.docker.internal:8080")
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+
+sentry_sdk.init(
+    dsn=SENTRY_DSN,
+    send_default_pii=False,
+    traces_sample_rate=1.0,
+)
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -49,6 +62,7 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
         dict: Success message indicating feedback submission and logging.
     """
     try:
+
         # Print the received payload for debugging
         print("Received Payload:", feedback.dict())
 
@@ -146,6 +160,8 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
 
     except Exception as e:
         print(f"Error during submit_feedback_eov: {e}")
+        capture_exception(e)
+
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 # Endpoint to handle user metadta feedback and log to MLflow
@@ -277,13 +293,12 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
 
     except Exception as e:
         print(f"Error during submit_feedback_metadata: {e}")
-        import traceback
-        traceback.print_exc()  # Affiche la trace complète
+        capture_exception(e)
+     
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
   
   
    
-
 # Endpoint to generate full metadata JSON schema
 @app.post("/generate_full_metadata_json/")
 async def generate_full_metadata(metadata: MetadataSchemaCIOOS):
