@@ -1,22 +1,24 @@
-[tool.poetry]
+[project]
 name = "observia-backend-metadata"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.9"
-langchain = "^0.3.13"
-langchain-cli = "^0.0.35"
-langchain-openai = "^0.2.12"
-httpx = "0.23.0"
-mlflow = "^2.19.0"
-langchain-community = "^0.3.13" 
-pandas = "^2.2.3"
-sentry-sdk = "^2.22.0"
+requires-python = ">=3.9,<4.0"
+dependencies = [
+    "langchain (>=0.3.20,<0.4.0)",
+    "langchain-cli (>=0.0.36,<0.0.37)",
+    "langchain-openai (>=0.3.8,<0.4.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "mlflow (>=2.21.0,<3.0.0)",
+    "langchain-community (>=0.3.19,<0.4.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "sentry-sdk (>=2.22.0,<3.0.0)"
+]
 
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

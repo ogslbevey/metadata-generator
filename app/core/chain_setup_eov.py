@@ -5,11 +5,21 @@ import mlflow.models
 from langchain_openai import ChatOpenAI
 
 # 1. Model configuration
+# model_eov = ChatOpenAI(
+#         model="gpt-4o-2024-08-06",
+#         temperature=0.1,
+#         seed=42,
+#      disable_streaming=True
+# )
+
+# model_eov = ChatOpenAI(
+#         model="o1-2024-12-17",
+#         reasoning_effort="medium",
+# )
+
 model_eov = ChatOpenAI(
-    model="gpt-4o-2024-08-06",
-    temperature=0.1,
-    seed=42,
-    disable_streaming=True
+        model="o3-mini-2025-01-31",
+        reasoning_effort="high",
 )
 
 # 2. Define the EOV-specific prompt
@@ -127,8 +137,7 @@ prompt_template_eov = ChatPromptTemplate.from_messages([
 
 # 4. Create the chain for EOV processing with structured output
 chain_eov = prompt_template_eov | model_eov.with_structured_output(
-    schema=EOVWithCitations,
-    method='json_schema',
+    EOVWithCitations
 )
 
 # 5. Register the EOV chain in MLflow

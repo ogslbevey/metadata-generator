@@ -18,11 +18,22 @@ import mlflow.models  # Import MLflow models
 from datetime import datetime
 
 # Model Configuration
-model = ChatOpenAI(
-    model="gpt-4o-2024-08-06",
-    temperature=0.1,
-    seed=42,
-    disable_streaming=True
+# 1. Model configuration
+# model_metadata = ChatOpenAI(
+#         model="gpt-4o-2024-08-06",
+#         temperature=0.1,
+#         seed=42,
+#      disable_streaming=True
+# )
+
+# model_metadata = ChatOpenAI(
+#         model="o1-2024-12-17",
+#         reasoning_effort="high",
+# )
+
+model_metadata = ChatOpenAI(
+        model="o3-mini-2025-01-31",
+        reasoning_effort="medium",
 )
 
 # Metadata Prompt
@@ -112,9 +123,8 @@ prompt_template_MetadataSchemaCIOOS = ChatPromptTemplate.from_messages([
 
 # Chain Creation
 # 1. Combine the MetadataSchemaCIOOS prompt template with the ChatOpenAI model to produce structured output
-chain_MetadataSchemaCIOOS = prompt_template_MetadataSchemaCIOOS | model.with_structured_output(
-    schema=MetadataSchemaCIOOS,
-    method='json_schema',
+chain_MetadataSchemaCIOOS = prompt_template_MetadataSchemaCIOOS | model_metadata.with_structured_output(
+    MetadataSchemaCIOOS,
 )
 
 # Register Chain with MLflow
