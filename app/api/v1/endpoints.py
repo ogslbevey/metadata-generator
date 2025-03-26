@@ -2,7 +2,7 @@
 from fastapi import FastAPI, HTTPException
 from langserve import add_routes
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sklearn.metrics import confusion_matrix, classification_report, precision_score, recall_score, f1_score
 import pandas as pd
 import mlflow
@@ -19,7 +19,7 @@ from app.schemas.metadata import MetadataSchemaCIOOS
 from app.schemas.feedback import FeedbackItem, UserFeedback_EOV, POSSIBLE_EOVS, KeywordFeedbackItem, MetadataFeedbackItem, MetadataFeedback
 from app.services.metadata_transform import transform_metadata_to_full
 from app.core.chain_setup_eov import model_eov, chain_eov
-from app.core.chain_setup_metadata import chain_MetadataSchemaCIOOS
+from app.core.chain_setup_metadata import model_metadata, chain_MetadataSchemaCIOOS
 
 # Utilities
 from app.utils.helpers import evaluate_keyword_feedback
@@ -312,3 +312,22 @@ async def generate_full_metadata(metadata: MetadataSchemaCIOOS):
         Transformed metadata in full JSON schema format.
     """
     return transform_metadata_to_full(metadata)
+
+
+
+@app.get("/chain_eov_model_info")
+def get_chain_eov_model_info():
+    """
+    Return the model name, reasoning effort, etc.
+    so the user can see which underlying model is used.
+    """
+    return model_eov
+
+
+@app.get("/chain_metadata_model_info")
+def get_chain_metadata_model_info():
+    """
+    Return the model name, reasoning effort, etc.
+    so the user can see which underlying model is used.
+    """
+    return model_metadata
