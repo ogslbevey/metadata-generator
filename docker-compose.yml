@@ -5,6 +5,8 @@ services:
     build: .
     container_name: observia-backend_metadata
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
     env_file:
       - .env
