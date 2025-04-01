@@ -20,5 +20,6 @@ COPY . /app
 EXPOSE 8000
 
 #7. Command to start the FastAPI application
-#CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "::", "--port", "8000"]
+
+CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "::", "--port", "8000"]
