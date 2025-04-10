@@ -5,6 +5,7 @@ from typing import List, Optional, Dict
 # FEEDBACK ITEM SCHEMAS
 # =============================================================================
 
+
 class FeedbackItem(BaseModel):
     eov: str
     accept: str
@@ -62,7 +63,7 @@ POSSIBLE_EOVS = [
     "Biomasse et diversité phytoplanctonique", "Biomasse et diversité zooplanctonique",
     "Abondance et diversité de poissons", "Abondance et distribution de tortues, oiseaux et mammifères marins",
     "Composition et couverture des coraux durs", "Composition et couverture des herbiers marins",
-    "Composition et couverture de la canopée de macroalgues", "Mangrove cover and composition",
+    "Composition et couverture de la canopée de macroalgues", "Couverture et composition des mangroves",
     "Biomasse et diversité microbienne", "Abondance et distribution des invertébrés",
     "Couleur des océans", "Débris marins", "Paysage acoustique des océans", 'Autre'
 ]

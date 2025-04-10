@@ -57,7 +57,7 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
 
     Args:
         feedback (UserFeedback_EOV): Feedback details including file metadata and EOV details.
-    
+
     Returns:
         dict: Success message indicating feedback submission and logging.
     """
@@ -84,12 +84,16 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
         with mlflow.start_run(run_name=run_name) as run:
 
             # Save feedback data
-            feedback_from_predicted_eovs = [item.dict() for item in feedback.feedback]
-            missing_eovs_with_comments = [item.dict() for item in feedback.missing_eovs]
+            feedback_from_predicted_eovs = [
+                item.dict() for item in feedback.feedback]
+            missing_eovs_with_comments = [item.dict()
+                                          for item in feedback.missing_eovs]
 
             # Log the JSON file to MLflow
-            mlflow.log_dict(feedback_from_predicted_eovs, "raw_feedback_data/feedback_from_predicted_eovs.json")
-            mlflow.log_dict(missing_eovs_with_comments, "raw_feedback_data/feedback_missing_eovs.json")
+            mlflow.log_dict(feedback_from_predicted_eovs,
+                            "raw_feedback_data/feedback_from_predicted_eovs.json")
+            mlflow.log_dict(missing_eovs_with_comments,
+                            "raw_feedback_data/feedback_missing_eovs.json")
 
             # Log metadata and context
             mlflow.log_param("file_name", feedback.file_name)
@@ -106,15 +110,22 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
 
             # Identify confusion matrix components
             all_possible_eovs = set(POSSIBLE_EOVS)
-            true_positives = [item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "yes"]
-            false_negatives = [item.eov for item in feedback.missing_eovs if item.eov in POSSIBLE_EOVS]
-            false_positives = [item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "no"]
-            true_negatives = list(all_possible_eovs - set(true_positives) - set(false_negatives) - set(false_positives))
+            true_positives = [
+                item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "yes"]
+            false_negatives = [
+                item.eov for item in feedback.missing_eovs if item.eov in POSSIBLE_EOVS]
+            false_positives = [
+                item.eov for item in feedback.feedback if item.eov in POSSIBLE_EOVS and item.accept.lower() == "no"]
+            true_negatives = list(
+                all_possible_eovs - set(true_positives) - set(false_negatives) - set(false_positives))
 
             # Calculate precision, recall, and F1 score
-            precision = len(true_positives) / (len(true_positives) + len(false_positives)) if (len(true_positives) + len(false_positives)) > 0 else 0
-            recall = len(true_positives) / (len(true_positives) + len(false_negatives)) if (len(true_positives) + len(false_negatives)) > 0 else 0
-            f1_score_val = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+            precision = len(true_positives) / (len(true_positives) + len(false_positives)
+                                               ) if (len(true_positives) + len(false_positives)) > 0 else 0
+            recall = len(true_positives) / (len(true_positives) + len(false_negatives)
+                                            ) if (len(true_positives) + len(false_negatives)) > 0 else 0
+            f1_score_val = 2 * (precision * recall) / (precision +
+                                                       recall) if (precision + recall) > 0 else 0
 
             # Log metrics
             mlflow.log_metric("precision", round(precision, 2))
@@ -143,9 +154,8 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
             eval_df.to_csv(eval_table_path, index=False)
 
             # Log the CSV file as an artifact
-            #mlflow.log_artifact(eval_table_path)
+            # mlflow.log_artifact(eval_table_path)
             mlflow.log_artifact(eval_table_path, artifact_path="evaluation")
-
 
             # Log confusion matrix components
             conf_matrix_artifact = {
@@ -154,7 +164,8 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
                 "false_negatives": false_negatives,
                 "true_negatives": true_negatives,
             }
-            mlflow.log_dict(conf_matrix_artifact, "evaluation/confusion_matrix_components.json")
+            mlflow.log_dict(conf_matrix_artifact,
+                            "evaluation/confusion_matrix_components.json")
 
         return {"message": "Feedback and model successfully submitted to MLflow."}
 
@@ -162,9 +173,12 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
         print(f"Error during submit_feedback_eov: {e}")
         capture_exception(e)
 
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"An error occurred: {str(e)}")
 
 # Endpoint to handle user metadta feedback and log to MLflow
+
+
 @app.post("/submit_feedback_metadata")
 def submit_metadata_feedback(feedback: MetadataFeedback):
     """
@@ -176,15 +190,17 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
         print("Received Metadata Payload:", feedback.dict())
 
         # Process metadata feedback
-        metadata_feedback = [item.dict() for item in feedback.metadata_feedback]
+        metadata_feedback = [item.dict()
+                             for item in feedback.metadata_feedback]
 
         # Process keyword feedback (les objets Pydantic reçus)
         keywords_feedback_en_objs = feedback.keywords_feedback.get("en", [])
         keywords_feedback_fr_objs = feedback.keywords_feedback.get("fr", [])
 
-
-        keywords_feedback_en = [item.dict() for item in keywords_feedback_en_objs]
-        keywords_feedback_fr = [item.dict() for item in keywords_feedback_fr_objs]
+        keywords_feedback_en = [item.dict()
+                                for item in keywords_feedback_en_objs]
+        keywords_feedback_fr = [item.dict()
+                                for item in keywords_feedback_fr_objs]
 
         print("Metadata Feedback:", metadata_feedback)
         print("Keywords EN Feedback:", keywords_feedback_en)
@@ -213,8 +229,10 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
         ]
 
         # Evaluate keyword feedback for French and English
-        evaluation_fr = evaluate_keyword_feedback(keywords_feedback_fr, predefined_keywords_fr)
-        evaluation_en = evaluate_keyword_feedback(keywords_feedback_en, predefined_keywords_en)
+        evaluation_fr = evaluate_keyword_feedback(
+            keywords_feedback_fr, predefined_keywords_fr)
+        evaluation_en = evaluate_keyword_feedback(
+            keywords_feedback_en, predefined_keywords_en)
 
         # Set up MLflow experiment for metadata feedback
         experiment_name = "User Feedback - Metadata"
@@ -230,9 +248,12 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
 
         with mlflow.start_run(run_name=run_name) as run:
             # Log raw metadata and keyword feedback to MLflow
-            mlflow.log_dict(metadata_feedback, "raw_feedback_data/metadata_feedback.json")
-            mlflow.log_dict(keywords_feedback_en, "raw_feedback_data/keywords_en_feedback.json")
-            mlflow.log_dict(keywords_feedback_fr, "raw_feedback_data/keywords_fr_feedback.json")
+            mlflow.log_dict(metadata_feedback,
+                            "raw_feedback_data/metadata_feedback.json")
+            mlflow.log_dict(keywords_feedback_en,
+                            "raw_feedback_data/keywords_en_feedback.json")
+            mlflow.log_dict(keywords_feedback_fr,
+                            "raw_feedback_data/keywords_fr_feedback.json")
 
             # Log contextual parameters
             mlflow.log_param("file_name", feedback.file_name)
@@ -242,44 +263,59 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
             # Log LangChain model code artifact if exists
             model_code_path = "./app/core/chain_setup_metadata.py"
             if os.path.exists(model_code_path):
-                mlflow.log_artifact(model_code_path, artifact_path="langchain_model_code")
+                mlflow.log_artifact(
+                    model_code_path, artifact_path="langchain_model_code")
                 print(f"Logged LangChain model code from: {model_code_path}")
             else:
                 print(f"Model code file not found at: {model_code_path}")
 
             # Calculate simple metrics for metadata feedback
             total_metadata = len(metadata_feedback)
-            accepted_metadata = sum(1 for item in metadata_feedback if item.get("accept", "").lower() == "accept")
+            accepted_metadata = sum(1 for item in metadata_feedback if item.get(
+                "accept", "").lower() == "accept")
             rejected_metadata = total_metadata - accepted_metadata
-            acceptance_rate_metadata = accepted_metadata / total_metadata if total_metadata > 0 else 0
+            acceptance_rate_metadata = accepted_metadata / \
+                total_metadata if total_metadata > 0 else 0
 
             mlflow.log_metric("01-total_metadata", total_metadata)
             mlflow.log_metric("02-accepted_metadata", accepted_metadata)
             mlflow.log_metric("03-rejected_metadata", rejected_metadata)
-            mlflow.log_metric("04-acceptance_rate_metadata", round(acceptance_rate_metadata, 2))
+            mlflow.log_metric("04-acceptance_rate_metadata",
+                              round(acceptance_rate_metadata, 2))
 
             # Keyword evaluation metrics for French
-            mlflow.log_metric("05-keywords_total_keywords_fr", evaluation_fr["total_keywords"])
-            mlflow.log_metric("06-keywords_api_accepted_count_fr", evaluation_fr["api_accepted_count"])
-            mlflow.log_metric("07-keywords_manual_added_count_fr", evaluation_fr["manual_added_count"])
-            mlflow.log_metric("08-keywords_final_true_count_fr", evaluation_fr["final_true_count"])
-            mlflow.log_metric("09-keywords_count_rejected_fr", evaluation_fr["count_rejected"])
-            mlflow.log_metric("10-keywords_accuracy_rate_fr", evaluation_fr["accuracy_rate"])
+            mlflow.log_metric("05-keywords_total_keywords_fr",
+                              evaluation_fr["total_keywords"])
+            mlflow.log_metric("06-keywords_api_accepted_count_fr",
+                              evaluation_fr["api_accepted_count"])
+            mlflow.log_metric("07-keywords_manual_added_count_fr",
+                              evaluation_fr["manual_added_count"])
+            mlflow.log_metric("08-keywords_final_true_count_fr",
+                              evaluation_fr["final_true_count"])
+            mlflow.log_metric("09-keywords_count_rejected_fr",
+                              evaluation_fr["count_rejected"])
+            mlflow.log_metric("10-keywords_accuracy_rate_fr",
+                              evaluation_fr["accuracy_rate"])
 
             # Keyword evaluation metrics for English
-            mlflow.log_metric("11-keywords_total_keywords_en", evaluation_en["total_keywords"])
-            mlflow.log_metric("12-keywords_api_accepted_count_en", evaluation_en["api_accepted_count"])
-            mlflow.log_metric("13-keywords_manual_added_count_en", evaluation_en["manual_added_count"])
-            mlflow.log_metric("14-keywords_final_true_count_en", evaluation_en["final_true_count"])
-            mlflow.log_metric("15-keywords_count_rejected_en", evaluation_en["count_rejected"])
-            mlflow.log_metric("16-keywords_accuracy_rate_en", evaluation_en["accuracy_rate"])
-
-
+            mlflow.log_metric("11-keywords_total_keywords_en",
+                              evaluation_en["total_keywords"])
+            mlflow.log_metric("12-keywords_api_accepted_count_en",
+                              evaluation_en["api_accepted_count"])
+            mlflow.log_metric("13-keywords_manual_added_count_en",
+                              evaluation_en["manual_added_count"])
+            mlflow.log_metric("14-keywords_final_true_count_en",
+                              evaluation_en["final_true_count"])
+            mlflow.log_metric("15-keywords_count_rejected_en",
+                              evaluation_en["count_rejected"])
+            mlflow.log_metric("16-keywords_accuracy_rate_en",
+                              evaluation_en["accuracy_rate"])
 
             # Log keyword evaluation results
-            mlflow.log_dict(evaluation_fr, "evaluation/keywords_evaluation_fr.json")
-            mlflow.log_dict(evaluation_en, "evaluation/keywords_evaluation_en.json")
-
+            mlflow.log_dict(
+                evaluation_fr, "evaluation/keywords_evaluation_fr.json")
+            mlflow.log_dict(
+                evaluation_en, "evaluation/keywords_evaluation_en.json")
 
             # Generate and log an evaluation table for metadata feedback
             eval_df_metadata = pd.DataFrame(metadata_feedback)
@@ -294,11 +330,11 @@ def submit_metadata_feedback(feedback: MetadataFeedback):
     except Exception as e:
         print(f"Error during submit_feedback_metadata: {e}")
         capture_exception(e)
-     
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-  
-  
-   
+
+        raise HTTPException(
+            status_code=500, detail=f"An error occurred: {str(e)}")
+
+
 # Endpoint to generate full metadata JSON schema
 @app.post("/generate_full_metadata_json/")
 async def generate_full_metadata(metadata: MetadataSchemaCIOOS):
@@ -307,12 +343,11 @@ async def generate_full_metadata(metadata: MetadataSchemaCIOOS):
 
     Args:
         metadata (MetadataSchemaCIOOS): Metadata input in the specified schema.
-    
+
     Returns:
         Transformed metadata in full JSON schema format.
     """
     return transform_metadata_to_full(metadata)
-
 
 
 @app.get("/chain_eov_model_info")

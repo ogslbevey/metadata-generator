@@ -32,8 +32,8 @@ from datetime import datetime
 # )
 
 model_metadata = ChatOpenAI(
-        model="o3-mini-2025-01-31",
-        reasoning_effort="medium",
+    model="o3-mini-2025-01-31",
+    reasoning_effort="medium",
 )
 
 # Metadata Prompt
