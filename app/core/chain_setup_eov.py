@@ -19,7 +19,7 @@ from langchain_openai import ChatOpenAI
 
 model_eov = ChatOpenAI(
     model="o3-mini-2025-01-31",
-    reasoning_effort="high",
+    reasoning_effort="medium",
 )
 
 # 2. Define the EOV-specific prompt
