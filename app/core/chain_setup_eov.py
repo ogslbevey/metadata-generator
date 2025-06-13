@@ -17,9 +17,15 @@ from langchain_openai import ChatOpenAI
 #     reasoning_effort="medium",
 # )
 
-model_eov = ChatOpenAI(
-    model="o3-mini-2025-01-31",
-    reasoning_effort="medium",
+# model_eov = ChatOpenAI(
+#     model="o3-mini-2025-01-31",
+#     reasoning_effort="medium",
+# )
+
+# model_metadata = ChatOpenAI(
+        model="gpt-4.1-2025-04-14",
+        temperature=0.0,
+        seed=42,
 )
 
 # 2. Define the EOV-specific prompt

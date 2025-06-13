@@ -31,9 +31,15 @@ from datetime import datetime
 #         reasoning_effort="high",
 # )
 
-model_metadata = ChatOpenAI(
-    model="o3-mini-2025-01-31",
-    reasoning_effort="medium",
+# model_eov = ChatOpenAI(
+#     model="o3-mini-2025-01-31",
+#     reasoning_effort="medium",
+# )
+
+# model_metadata = ChatOpenAI(
+        model="gpt-4.1-2025-04-14",
+        temperature=0.0,
+        seed=42,
 )
 
 # Metadata Prompt
