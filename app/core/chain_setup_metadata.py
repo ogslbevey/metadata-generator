@@ -36,7 +36,7 @@ from datetime import datetime
 #     reasoning_effort="medium",
 # )
 
-# model_metadata = ChatOpenAI(
+model_metadata = ChatOpenAI(
         model="gpt-4.1-2025-04-14",
         temperature=0.0,
         seed=42,
