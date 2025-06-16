@@ -36,12 +36,17 @@ from datetime import datetime
 #     reasoning_effort="medium",
 # )
 
-model_metadata = ChatOpenAI(
-        model="gpt-4.1",
-        temperature=0.0,
-        seed=42,
-)
+# model_metadata = ChatOpenAI(
+#         model="gpt-4.1",
+#         temperature=0.0,
+#         seed=42,
+# )
 
+model_metadata = ChatOpenAI(
+    model="o3",
+    reasoning_effort="medium",
+    seed=42,
+)
 # Metadata Prompt
 prompt_MetadataSchemaCIOOS_v1 = f'''
     Vous êtes un expert en extraction de données non structurées maritimes. Votre tâche est d'extraire les informations strictement présentes dans le texte fourni et de remplir les champs de la structure de données demandée, en français et en anglais, selon la définition de la classe ci-dessous.

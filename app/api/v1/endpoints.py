@@ -167,6 +167,11 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
             mlflow.log_dict(conf_matrix_artifact,
                             "evaluation/confusion_matrix_components.json")
 
+            confiance_dict = {
+                item.eov: item.confiance or "non spécifié" for item in feedback.feedback
+            }
+            mlflow.log_dict(confiance_dict, "raw_feedback_data/confiance_levels.json")
+
         return {"message": "Feedback and model successfully submitted to MLflow."}
 
     except Exception as e:

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal
 
 # =============================================================================
 # FEEDBACK ITEM SCHEMAS
@@ -10,6 +10,7 @@ class FeedbackItem(BaseModel):
     eov: str
     accept: str
     justification: Optional[str] = None
+    confiance: Optional[Literal["très élevé", "élevé", "moyen", "faible"]] = None
 
 
 class MissingEOVItem(BaseModel):

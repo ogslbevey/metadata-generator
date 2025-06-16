@@ -22,10 +22,16 @@ from langchain_openai import ChatOpenAI
 #     reasoning_effort="medium",
 # )
 
+# model_eov = ChatOpenAI(
+#         model="gpt-4.1",
+#         temperature=0.0,
+#         seed=42,
+# )
+
 model_eov = ChatOpenAI(
-        model="gpt-4.1",
-        temperature=0.0,
-        seed=42,
+    model="o3",
+    reasoning_effort="medium",
+    seed=42,
 )
 
 # 2. Define the EOV-specific prompt
@@ -42,6 +48,8 @@ prompt_eov_v1 = f'''
     3. **Pour chaque EOV identifiée, expliquez en détail, en vous appuyant sur des extraits et des citations directes du texte. Fournissez une explication claire et précise avec une citation exacte du texte pour justifier votre choix. Le texte doit être en FRANÇAIS.**
   
     4. **Vérifiez que chaque EOV est justifiée par une citation du texte ET est présente dans la liste des EOV autorisées. Si ce n'est pas le cas, RETIREZ cette EOV de votre réponse.**
+
+    5. **Classez les EOVs identifiées dans votre réponse par ordre DÉCROISSANT de niveau de confiance, en précisant pour chaque EOV une estimation qualitative de confiance 'très élevé', 'élevé', 'moyen', 'faible' ).**
 
     ---
 
