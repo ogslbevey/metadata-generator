@@ -49,7 +49,7 @@ prompt_eov_v1 = f'''
   
     4. **Vérifiez que chaque EOV est justifiée par une citation du texte ET est présente dans la liste des EOV autorisées. Si ce n'est pas le cas, RETIREZ cette EOV de votre réponse.**
 
-    5. **Classez les EOVs identifiées dans votre réponse par ordre DÉCROISSANT de niveau de confiance, en précisant pour chaque EOV une estimation qualitative de confiance 'très élevé', 'élevé', 'moyen', 'faible' ).**
+    5. **Classez les EOVs identifiées dans votre réponse par ordre DÉCROISSANT de niveau de confiance, en précisant pour chaque EOV une estimation qualitative de confiance ('très élevé', 'élevé', 'moyen', 'faible').**
 
     ---
 
