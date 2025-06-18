@@ -50,7 +50,7 @@ add_routes(app, chain_eov, path="/chain_eov")
 
 
 # Endpoint to handle user eov feedback and log to MLflow
-@app.post("/submit_feedback_eov")
+@app.post("/submit_feedback_eov/")
 def submit_eov_feedback(feedback: UserFeedback_EOV):
     """
     Process user feedback and log data to MLflow.
@@ -184,7 +184,7 @@ def submit_eov_feedback(feedback: UserFeedback_EOV):
 # Endpoint to handle user metadta feedback and log to MLflow
 
 
-@app.post("/submit_feedback_metadata")
+@app.post("/submit_feedback_metadata/")
 def submit_metadata_feedback(feedback: MetadataFeedback):
     """
     Process metadata and keyword feedback, log data to MLflow, and save LangChain model as code.
@@ -371,3 +371,61 @@ def get_chain_metadata_model_info():
     so the user can see which underlying model is used.
     """
     return model_metadata
+
+
+
+@app.post("/log_anomaly_event_metadata/")
+def log_anomaly_event():
+    """
+    Log only a timestamp in MLflow when the anomaly button is clicked.
+    """
+    try:
+        experiment_name = "Anomaly Events - Metadata"
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+        if experiment and experiment.lifecycle_stage == "deleted":
+            mlflow.tracking.MlflowClient().restore_experiment(experiment.experiment_id)
+        elif not experiment:
+            mlflow.create_experiment(experiment_name)
+        mlflow.set_experiment(experiment_name)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        run_name = f"Anomaly at {now}"
+
+        with mlflow.start_run(run_name=run_name) as run:
+            mlflow.log_param("timestamp", now)
+            mlflow.log_param("attention", True)
+
+        return {"message": "Anomaly event timestamp logged in MLflow."}
+    except Exception as e:
+        print("Error logging anomaly timestamp:", e)
+        return {"error": str(e)}
+    
+
+@app.post("/log_anomaly_event_eov/")
+def log_anomaly_event():
+    """
+    Log only a timestamp in MLflow when the anomaly button is clicked.
+    """
+    try:
+        experiment_name = "Anomaly Events - EOV"
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+        if experiment and experiment.lifecycle_stage == "deleted":
+            mlflow.tracking.MlflowClient().restore_experiment(experiment.experiment_id)
+        elif not experiment:
+            mlflow.create_experiment(experiment_name)
+        mlflow.set_experiment(experiment_name)
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        run_name = f"Anomaly at {now}"
+
+        with mlflow.start_run(run_name=run_name) as run:
+            mlflow.log_param("timestamp", now)
+            mlflow.log_param("attention", True)
+
+        return {"message": "Anomaly event timestamp logged in MLflow."}
+    except Exception as e:
+        print("Error logging anomaly timestamp:", e)
+        return {"error": str(e)}
+    
+
+
