@@ -1,12 +1,12 @@
 # 1. Use a lightweight base image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 
 # 2. Set the working directory
 WORKDIR /app
 
 # 3. Copy Poetry configuration files first for dependency caching
-COPY poetry.lock pyproject.toml /app/
+COPY pyproject.toml poetry.lock ./
 
 # 4. Install Poetry and dependencies (cached if pyproject.toml or poetry.lock doesn't change)
 RUN pip install poetry \
@@ -14,7 +14,7 @@ RUN pip install poetry \
     && poetry install --no-root
 
 # 5. Copy the application code (changes more frequently)
-COPY . /app
+COPY . .
 
 # 6. Expose the FastAPI port
 EXPOSE 8000
