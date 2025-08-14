@@ -24,8 +24,8 @@ from langchain_openai import ChatOpenAI
 
 model_eov = ChatOpenAI(
         model="gpt-5",
-        temperature=0.0,
-        seed=42,
+    # temperature=0.0,
+     #   seed=42,
 )
 
 # model_eov = ChatOpenAI(
