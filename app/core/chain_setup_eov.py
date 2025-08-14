@@ -30,7 +30,7 @@ from langchain_openai import ChatOpenAI
 
 model_eov = ChatOpenAI(
     model="o3",
-    reasoning_effort="high",
+    reasoning_effort="medium",
     seed=42,
 )
 
