@@ -22,17 +22,17 @@ from langchain_openai import ChatOpenAI
 #     reasoning_effort="medium",
 # )
 
-model_eov = ChatOpenAI(
-        model="gpt-5",
-    # temperature=0.0,
-     #   seed=42,
-)
-
 # model_eov = ChatOpenAI(
-#     model="o3",
-#     reasoning_effort="medium",
-#     seed=42,
+#         model="gpt-5",
+#     # temperature=0.0,
+#      #   seed=42,
 # )
+
+model_eov = ChatOpenAI(
+    model="o3",
+    reasoning_effort="high",
+    seed=42,
+)
 
 # 2. Define the EOV-specific prompt
 prompt_eov_v1 = f'''
