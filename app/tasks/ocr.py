@@ -70,7 +70,7 @@ def get_text(batch: list[dict]) -> str:
     bind=True,
     name="app.tasks.ocr.pdf",
 )
-def get_pdf_layout(self, url: str) -> dict:
+def get_pdf_layout(self, url: str, hash: str) -> dict:
     doc=None
     try:
         response = httpx.get(url, timeout=60,follow_redirects=True)
@@ -119,6 +119,7 @@ def get_pdf_layout(self, url: str) -> dict:
             "status": "SUCCESS",
             "result": pages_cleaned,
             "type": "pymudf4llm",
+            "hash": hash
         }
 
     except httpx.HTTPError as e:
@@ -126,7 +127,8 @@ def get_pdf_layout(self, url: str) -> dict:
         return {
             "url": url,
             "status": "FAILED",
-            "error": str(e)
+            "error": str(e),
+            "hash": hash
         }
     finally:
         if doc:

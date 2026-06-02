@@ -3,6 +3,7 @@ from celery import Celery
 from dotenv import load_dotenv
 import os
 
+
 load_dotenv()
 
 celery_app = Celery(
@@ -31,3 +32,6 @@ celery_app.conf.update(
         "app.tasks.ocr.*": {"queue": "ocr"},
     },
 )
+
+
+
