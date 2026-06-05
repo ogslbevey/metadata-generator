@@ -2,10 +2,7 @@
 
 # start the service 
 echo 'starting minio...'
-CONSOLE_PORT=${PORT:-9001}
-
-minio server /data --console-address ":$CONSOLE_PORT" &
-
+minio server /data --console-address ":9001" &
 
 # ensure that the service has started
 echo 'waiting for minio to start...'
