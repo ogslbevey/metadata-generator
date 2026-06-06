@@ -1,0 +1,129 @@
+
+version: '3.8'
+
+services:
+  # 1. The Core MinIO Storage Engine (API Only)
+  minio-server:
+    build:
+      context: ./minio-server
+      dockerfile: Dockerfile
+    container_name: minio_server
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000" # S3 API endpoint exposed to host
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minio-strong-password
+      RAILWAY_VOLUME_MOUNT_PATH: /data
+      PORT: 9000 # Ensure the server listens on the correct port for S3 API
+      MINIO_PRIVATE_PORT: 9000 # Ensure the server listens on the correct port for S3 API
+      MINIO_PUBLIC_PORT: 443 
+      MINIO_BROWSER_REDIRECT_URL: "https://localhost:9001" # Redirect to the correct port for the web console
+
+
+    # Crucial: Start the server pointing strictly to the S3 API port
+    command: >
+      /bin/sh -c "exec minio server --address [::]:$$MINIO_PRIVATE_PORT $$RAILWAY_VOLUME_MOUNT_PATH"
+    
+    restart: unless-stopped
+
+  # 2. The Standalone Web Console Interface
+  minio-console:
+    build:
+      context: ./minio-console
+      dockerfile: Dockerfile
+    container_name: minio_console
+    
+    ports:
+      - "9001:9090" # Web UI endpoint exposed to host
+    environment:
+      # Instruct the console service where to find the underlying S3 API container
+      CONSOLE_MINIO_SERVER: http://minio-server:9000
+      USERNAME: minioadmin
+      PASSWORD: minio-strong-password
+      PORT: 9090
+    command: >
+      /bin/sh -c "exec console server --host 0.0.0.0 --port $$PORT"
+    depends_on:
+      - minio-server
+  
+    restart: unless-stopped
+    
+
+volumes:
+  minio_data:
+    driver: local
+
+
+
+
+#   flower:
+#     build: ./ocr-worker
+#     container_name: flower
+#     restart: unless-stopped
+#     command: uv run celery -A app.celery_app flower --port=5555
+#     ports:
+#       - "5555:5555"
+#     volumes:
+#       - ./ocr-worker:/app
+#   backend:
+#     build: ./observia_backend_metadata
+#     container_name: backend
+#     restart: unless-stopped
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - ./observia_backend_metadata:/app
+    
+#   frontend:
+#     build:
+#       context: ./observia-frontend-metadata
+#       dockerfile: Dockerfile.dev
+#     environment:
+#       - NODE_ENV=development
+#       - BACKEND_URL=http://backend:8000
+#     container_name: frontend
+#     restart: unless-stopped
+#     ports:
+#       - "3000:3000"
+#     volumes:
+#       - ./observia-frontend-metadata:/app
+#       - /app/node_modules
+#       - /app/.next
+#     depends_on:
+#       - backend
+  
+# #   opensearch:
+# #     image: opensearchproject/opensearch:latest
+# #     container_name: opensearch
+# #     environment:
+# #       - discovery.type=single-node
+# #       - bootstrap.memory_lock=true
+# #       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+# #       - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Str0ng!Passw0rd#2024"
+# #     ulimits:
+# #       memlock:
+# #         soft: -1
+# #         hard: -1
+# #       nofile:
+# #         soft: 65536
+# #         hard: 65536
+# #     volumes:
+# #       - opensearch-data:/usr/share/opensearch/data
+# #     ports:
+# #       - "9200:9200"   # REST API
+# #       - "9600:9600"   # Performance Analyzer
+    
+#   dashboards:
+#     image: opensearchproject/opensearch-dashboards:latest
+#     container_name: opensearch-dashboards
+#     ports:
+#       - "5601:5601"   # Web console
+#     environment:
+#       - 'OPENSEARCH_HOSTS=["https://opensearch:9200"]'
+#     depends_on:
+#       - opensearch
+  
+
+  
