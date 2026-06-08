@@ -9,9 +9,5 @@ dependencies = [
     "celery[redis]>=5.6.3",
     "dotenv>=0.9.9",
     "flower>=2.0.1",
-    "httpx>=0.28.1",
-    "img2table>=2.0.0",
-    "pandas>=3.0.3",
-    "pymupdf>=1.27.2",
-    "pymupdf4llm>=1.27.2.1",
+    
 ]
