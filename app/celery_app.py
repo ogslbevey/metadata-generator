@@ -28,7 +28,7 @@ celery_app.conf.update(
     worker_max_tasks_per_child=50,
     result_expires=3600,
     task_routes={
-        "app.tasks.render.*": {"queue": "render"},
+      
         "app.tasks.ocr.*": {"queue": "ocr"},
     },
 )

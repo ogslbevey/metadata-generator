@@ -21,8 +21,8 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 ENV CELERY_APP=app.celery_app \
-    CELERY_QUEUES=render,ocr \
-    CELERY_CONCURRENCY=4 \
+    CELERY_QUEUES=ocr \
+    CELERY_CONCURRENCY=32 \
     CELERY_LOGLEVEL=info \
     CELERY_MAX_TASKS_PER_CHILD=50 \
     CELERY_MAX_MEMORY_PER_CHILD=500000
