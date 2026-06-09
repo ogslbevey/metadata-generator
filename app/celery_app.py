@@ -10,7 +10,7 @@ celery_app = Celery(
     "ocr_pipeline",
     broker=os.getenv("REDIS_URL"),
     backend=os.getenv("REDIS_URL"),
-    include=["app.tasks.ocr"], 
+    include=["app.tasks.ocr", "app.tasks.render"], 
 )
 
 celery_app.conf.update(
@@ -29,7 +29,8 @@ celery_app.conf.update(
     result_expires=600,
     task_routes={
       
-        "app.tasks.ocr.*": {"queue": "ocr"},
+        "app.tasks.ocr.pdf": {"queue": "ocr"},
+        "app.tasks.render.pdf": {"queue": "render"},
     },
 )
 
