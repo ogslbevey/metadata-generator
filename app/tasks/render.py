@@ -40,7 +40,8 @@ def render_pdf(self,hash_: str, url: str, page: int, zoom_x: float=2.0, zoom_y: 
         mat = fitz.Matrix(zoom_x, zoom_y)
         pix = page_obj.get_pixmap(matrix=mat)
         img_bytes = pix.tobytes(output="png")
-        url = write_image_to_s3(BUCKET_NAME, f"{hash_}/images/{page}.png", img_bytes)
+        url = write_image_to_s3(BUCKET_NAME, f"{hash_}/images/page_{page}.png", img_bytes)
+    
         return {
             "status": "SUCCESS",
             "type": "render",
