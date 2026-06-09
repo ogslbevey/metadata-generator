@@ -21,11 +21,8 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 ENV CELERY_APP=app.celery_app \
-    CELERY_QUEUES=ocr,render \
-    CELERY_CONCURRENCY=32 \
-    CELERY_LOGLEVEL=info \
-    CELERY_MAX_TASKS_PER_CHILD=500 \
-    CELERY_MAX_MEMORY_PER_CHILD=1000000
+    CELERY_QUEUES=ocr,render 
+
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
