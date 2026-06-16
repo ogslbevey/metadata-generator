@@ -1,7 +1,9 @@
 import redis
 import os
 from collections import OrderedDict
-
+from dotenv import load_dotenv
+import httpx
+load_dotenv()
 _redis = redis.Redis.from_url(os.getenv("REDIS_URL"))
 _PDF_TTL = 3600  # match your result_expires
 _pdf_cache: OrderedDict[str, bytes] = OrderedDict()

@@ -4,9 +4,12 @@ from dotenv import load_dotenv
 import os
 import boto3
 from botocore.config import Config
-
+import logging
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(os.getenv("REDIS_URL"))
 celery_app = Celery(
     "ocr_pipeline",
     broker=os.getenv("REDIS_URL"),
@@ -27,7 +30,8 @@ celery_app.conf.update(
     worker_send_task_events=True,
     task_send_sent_event=True,
     worker_max_tasks_per_child=50,
-    result_expires=600,
+    result_expires=3600,
+    result_extended=True,
     task_routes={
       
         "app.tasks.ocr.pdf": {"queue": "ocr"},
