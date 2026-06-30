@@ -1,129 +1,211 @@
-
 version: '3.8'
+volumes:
+  redis_data:
+  opensearch-data:
+  postgres-data:
 
 services:
-  # 1. The Core MinIO Storage Engine (API Only)
-  minio-server:
-    build:
-      context: ./minio-server
-      dockerfile: Dockerfile
-    container_name: minio_server
-    volumes:
-      - minio_data:/data
-    ports:
-      - "9000:9000" # S3 API endpoint exposed to host
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minio-strong-password
-      RAILWAY_VOLUME_MOUNT_PATH: /data
-      PORT: 9000 # Ensure the server listens on the correct port for S3 API
-      MINIO_PRIVATE_PORT: 9000 # Ensure the server listens on the correct port for S3 API
-      MINIO_PUBLIC_PORT: 443 
-      MINIO_BROWSER_REDIRECT_URL: "https://localhost:9001" # Redirect to the correct port for the web console
 
-
-    # Crucial: Start the server pointing strictly to the S3 API port
-    command: >
-      /bin/sh -c "exec minio server --address [::]:$$MINIO_PRIVATE_PORT $$RAILWAY_VOLUME_MOUNT_PATH"
-    
+  backend:
+    build: ./observia_backend_metadata
+    container_name: backend
     restart: unless-stopped
-
-  # 2. The Standalone Web Console Interface
-  minio-console:
-    build:
-      context: ./minio-console
-      dockerfile: Dockerfile
-    container_name: minio_console
-    
-    ports:
-      - "9001:9090" # Web UI endpoint exposed to host
-    environment:
-      # Instruct the console service where to find the underlying S3 API container
-      CONSOLE_MINIO_SERVER: http://minio-server:9000
-      USERNAME: minioadmin
-      PASSWORD: minio-strong-password
-      PORT: 9090
-    command: >
-      /bin/sh -c "exec console server --host 0.0.0.0 --port $$PORT"
+    env_file:
+      - .env
     depends_on:
-      - minio-server
-  
+      - ocr-worker
+      - redis
+      - opensearch
+      - mlflow
+    # volumes:
+    #   - ./observia_backend_metadata:/app
+  frontend:
+    build:
+      context: ./observia-frontend-metadata
+      dockerfile: Dockerfile.dev
+    environment:
+      - BACKEND_URL=http://backend:8000
+    container_name: frontend
     restart: unless-stopped
-    
+    ports:
+      - "3000:3000"
+    # volumes:
+    #   - ./observia-frontend-metadata:/app
+    #   - /app/node_modules
+    #   - /app/.next
+    depends_on:
+      - backend
+  # Celery stack for OCR processing
+  redis:
+    image: redis:8.8.0
+    container_name: redis
+    restart: unless-stopped
+    environment:
+      RAILWAY_VOLUME_MOUNT_PATH: /data
+      REDIS_PASSWORD: redis-strong-password
+      REDIS_USER: default
+      REDISPORT: "6379"
+    command: >
+      /bin/sh -c "rm -rf $$RAILWAY_VOLUME_MOUNT_PATH/lost+found/ && exec docker-entrypoint.sh redis-server --requirepass $$REDIS_PASSWORD --save 60 1 --dir $$RAILWAY_VOLUME_MOUNT_PATH"
 
-volumes:
-  minio_data:
-    driver: local
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
+  ocr-worker:
+    build: ./ocr-worker
+    container_name: ocr_worker
+    restart: unless-stopped
+    env_file:
+      - .env
 
+    volumes:
+      - ./ocr-worker:/app
+    depends_on:
+      - redis
 
+  celery-flower-monitor:
+    build: ./celery-flower-monitor
+    container_name: celery_flower_monitor
+    restart: unless-stopped
+    env_file:
+      - .env
+    # ports:
+    #   - "5555:5555"
+    # depends_on:
+    #   - ocr-worker
 
-#   flower:
-#     build: ./ocr-worker
-#     container_name: flower
-#     restart: unless-stopped
-#     command: uv run celery -A app.celery_app flower --port=5555
-#     ports:
-#       - "5555:5555"
-#     volumes:
-#       - ./ocr-worker:/app
-#   backend:
-#     build: ./observia_backend_metadata
-#     container_name: backend
-#     restart: unless-stopped
-#     ports:
-#       - "8000:8000"
-#     volumes:
-#       - ./observia_backend_metadata:/app
-    
-#   frontend:
-#     build:
-#       context: ./observia-frontend-metadata
-#       dockerfile: Dockerfile.dev
-#     environment:
-#       - NODE_ENV=development
-#       - BACKEND_URL=http://backend:8000
-#     container_name: frontend
-#     restart: unless-stopped
-#     ports:
-#       - "3000:3000"
-#     volumes:
-#       - ./observia-frontend-metadata:/app
-#       - /app/node_modules
-#       - /app/.next
-#     depends_on:
-#       - backend
-  
-# #   opensearch:
-# #     image: opensearchproject/opensearch:latest
-# #     container_name: opensearch
-# #     environment:
-# #       - discovery.type=single-node
-# #       - bootstrap.memory_lock=true
-# #       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-# #       - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Str0ng!Passw0rd#2024"
-# #     ulimits:
-# #       memlock:
-# #         soft: -1
-# #         hard: -1
-# #       nofile:
-# #         soft: 65536
-# #         hard: 65536
-# #     volumes:
-# #       - opensearch-data:/usr/share/opensearch/data
-# #     ports:
-# #       - "9200:9200"   # REST API
-# #       - "9600:9600"   # Performance Analyzer
-    
-#   dashboards:
-#     image: opensearchproject/opensearch-dashboards:latest
-#     container_name: opensearch-dashboards
-#     ports:
-#       - "5601:5601"   # Web console
-#     environment:
-#       - 'OPENSEARCH_HOSTS=["https://opensearch:9200"]'
-#     depends_on:
-#       - opensearch
-  
+    # OpenSearch and OpenSearch Dashboards
+  opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: opensearch
+    env_file:
+      - ./railway-stack/.env
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node
 
-  
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+      - ./railway-stack/certs:/usr/share/opensearch/config/certs:ro
+
+    ports:
+      - 9200:9200
+
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -sk -u admin:$${OPENSEARCH_ADMIN_PASSWORD} https://localhost:9200/_cluster/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2
+    container_name: opensearch-dashboards
+    env_file:
+      - ./railway-stack/.env
+    environment:
+      - OPENSEARCH_HOSTS=https://opensearch:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - OPENSEARCH_SSL_VERIFICATIONMODE=none
+    ports:
+      - 5601:5601
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5601/api/status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./railway-stack/opensearch:/usr/share/opensearch-dashboards/config
+  ## MlFLOW stack
+  postgres:
+    image: postgres:latest
+    env_file:
+      - ./railway-stack/.env
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  minio:
+    build:
+      context: ./railway-stack/minio
+      dockerfile: dockerfile
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      # MinIO Console is available at http://localhost:9001
+      - "9001:9001"
+    volumes:
+      - ./railway-stack/minio/data:/minio/data
+    environment:
+      MINIO_ROOT_USER: "minio_user"
+      MINIO_ROOT_PASSWORD: "minio_password"
+    healthcheck:
+      test: timeout 5s bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1
+      interval: 1s
+      timeout: 10s
+      retries: 5
+  mlflow:
+    build:
+      context: ./railway-stack/mlflow
+      dockerfile: dockerfile
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    # Port removed - only accessible through Caddy auth proxy
+    # ports: 
+    #   - 5000:5000
+    env_file:
+      - ./railway-stack/.env
+    environment:
+      HOST: "[::]"
+      PORT: "5000"
+
+  # Caddy reverse proxy with authentication
+  caddy:
+    build:
+      context: ./railway-stack/caddy
+      dockerfile: dockerfile
+    restart: unless-stopped
+    depends_on:
+      mlflow:
+        condition: service_started
+    ports:
+      - "8080:8080" # Railway will handle SSL termination
+      - "8081:8081" # Railway will handle SSL termination
+    env_file:
+      - ./railway-stack/.env
+    environment:
+      # Railway will use this to determine service port
+      PORT: 8080
+      # Railway will provide these credentials, or use defaults for local dev
+
+      MLFLOW_URL: mlflow:5000
+      MLFLOW_HOST: mlflow
+      MLFLOW_PORT: 5000
+      # Optional OAuth2 configuration (commented out by default)
+      # OAUTH2_CLIENT_ID: ${OAUTH2_CLIENT_ID}
+      # OAUTH2_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
