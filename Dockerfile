@@ -4,12 +4,12 @@ WORKDIR /app
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        tesseract-ocr \
-        tesseract-ocr-eng \
-        tesseract-ocr-fra\
-        libgl1 \
-        libglib2.0-0 \
-        tini \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-fra\
+    libgl1 \
+    libglib2.0-0 \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
@@ -21,7 +21,8 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 ENV CELERY_APP=app.celery_app \
-    CELERY_QUEUES=ocr,render 
+    CELERY_QUEUES=ocr,render \
+    CELERY_LOGLEVEL=info 
 
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
