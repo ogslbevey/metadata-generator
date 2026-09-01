@@ -1,0 +1,29 @@
+
+
+URLS=[
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_f10f496a-acf4-4274-9c7b-7a005bcf54ed/ziprne_portrait_ecogeomorphologique.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_f10f496a-acf4-4274-9c7b-7a005bcf54ed/ziprne_caracterisation_hydrogeomorph_sedimentolo_plage_pointe_a_boisvert.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/caracterisation_2004_moulin_a_baude_final_14_juin_2005.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_45faf8e7-4898-4ef8-b895-9033b3a4e4a4/plan_action_gestion_eau_essipit_les-escoumins.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/portrait_des_plagesvf.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_845343ac-c001-4dd9-9e8e-a716b5e7c053/plan_intervention_tourbieres_peninsule_manicouagan.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/rapport_inventaire_pessamit.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/actesducolloque.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_5374b582-43aa-4ffa-8361-4a0d9f1f6b8e/caract_portneuf-sur-mer_comiteziprne.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_cb32e4db-9671-41d5-b396-83ef74b57dec/bancs-coquilliers_mrc-hcn.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_cb32e4db-9671-41d5-b396-83ef74b57dec/bancs-coquilliers_mrc-manic.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_46d3ba2e-2fd3-4aad-a51a-f8343fbe6a73/Portrait_PAO_2022_ZIPRNE.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_a5125bd3-60e3-4c89-89b6-2d3a8728d10f/Portrait_ZIPRNE_bergeronnes_2022.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/rapport_ismer_2003.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_e8c4d8ae-cfff-4222-bc42-87c596f704e0/plan_protection_littoral_colombier.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/plan_dintervention_mammiferes_marins.pdf",
+    "https://catalogue.ogsl.ca/data/zip-rne/ca-cioos_80c0b9a1-bbe4-44f3-99db-8fb973a973cb/plan-dd-du-secteur-des-panoramas.pdf",
+    "https://zipnord.qc.ca/data/13-zipnord/ressources/documents/sys_docs/plan_de_mise_en_valeur_portneuf_-_vf.pdf",
+    "https://catalogue.preprod.ogsl.ca/data/zip-rne/ca-cioos_bcce8169-8fae-41b3-aa04-c0d1e559c0de/ziprne_fiche01_baieBergeronnes.pdf",
+    "https://catalogue.preprod.ogsl.ca/data/zip-rne/ca-cioos_bcce8169-8fae-41b3-aa04-c0d1e559c0de/ziprne_fiche03_pointeBoisvert.pdf",
+    "https://catalogue.preprod.ogsl.ca/data/zip-rne/ca-cioos_bcce8169-8fae-41b3-aa04-c0d1e559c0de/ziprne_fiche04_barrePortneuf.pdf",
+    "https://catalogue.ogsl.ca/data/zip-sud/ca-cioos_bed3dace-1d70-4227-9683-ea28303d23ca/zipse_suivi_limicole_isle_verte_2017.pdf",
+    "https://catalogue.ogsl.ca/data/zip-sud/ca-cioos_0d9cd912-9190-4bd8-b5dc-fb7af1819631/rapport-de-caracterisation.pdf",
+    "https://catalogue.ogsl.ca/data/zip-sud/ca-cioos_cd10f0fd-830c-4510-8e40-67c75e5d0e0f/zipse_rapport_RNFPAP_2021.pdf",
+    "https://catalogue.preprod.ogsl.ca/data/zip-rne/ca-cioos_bcce8169-8fae-41b3-aa04-c0d1e559c0de/ziprne_fiche04_barrePortneuf.pdf"
+]
