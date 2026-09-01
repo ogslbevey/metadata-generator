@@ -82,7 +82,7 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
         resources.opensearch_client=AsyncOpenSearch(
         hosts=[{"host":os.environ.get("OPENSEARCH_HOST"), "port": int(os.environ.get("OPENSEARCH_PORT"))}],
         http_auth=("admin", os.environ.get("OPENSEARCH_PASSWORD")),
-        use_ssl=True,
+        use_ssl=False,
         verify_certs=False,      # demo self-signed cert; set True + ca_certs in prod
         ssl_show_warn=False) 
      
