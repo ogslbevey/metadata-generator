@@ -65,6 +65,8 @@ def send_render_tasks_for_pdf(
     group_result.save()
     return group_result.id
 
+
+
 async def is_existing_objects(s3_client: Any, page_indexes: list[int], hash_: str, bucket: str | None = None, sem: asyncio.Semaphore | None = None) -> bool:
 
     bucket = bucket or os.getenv("AWS_BUCKET_NAME")
