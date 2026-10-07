@@ -1,4 +1,4 @@
-from __future__ import annotations
+
 from dataclasses import dataclass
 import logging
 from contextlib import asynccontextmanager
@@ -11,19 +11,22 @@ from app.deps.redis_init import init_redis, close_redis
 from app.deps.mlflow_init import setup_mlflow
 from app.deps.psql_init  import init_pg_pool, close_pg_pool
 from typing import Callable, Awaitable, TypeVar, Any, ParamSpec
+from app.tasks import celery_app
 import os
 import asyncio
 import functools
 import aioboto3
 from openai import AsyncOpenAI
-
+# from phoenix.client import AsyncClient
 import mlflow 
 from opensearchpy import AsyncOpenSearch
 from botocore.config import Config
-
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
-AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
-    
+logger.info(f"REDIS_URL: {os.getenv('REDIS_URL')}")
+
 # All resource initialization and cleanup in one place
 @dataclass
 class Resources:
@@ -35,6 +38,8 @@ class Resources:
     openai_client: object | None
     http_client: object | None = None
     opensearch_client: object | None = None
+    celery_app: object | None = None
+    phoenix_client: object | None = None
 
 @asynccontextmanager
 async def resource_lifespan(app: Optional[FastAPI] = None):
@@ -46,7 +51,9 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
         gemini_client=None,
         openai_client=None,
         http_client=None,
-        opensearch_client=None
+        opensearch_client=None,
+        celery_app=celery_app,
+        phoenix_client=None,
     )
 
     s3_context = None
@@ -54,10 +61,10 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
     try:
         resources.redis_client = init_redis()
         resources.mlflow_client=setup_mlflow()
+
         session = aioboto3.Session()
-        logger.info("Initializing S3 client...")
-        logger.info(f"AWS_ENDPOINT_URL: {os.getenv('AWS_ENDPOINT_URL')}")
-      
+
+   
         s3_context = session.client(
             "s3",
             endpoint_url=os.getenv("AWS_ENDPOINT_URL"),
@@ -72,14 +79,19 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
             ),
         )
         resources.s3_client = await s3_context.__aenter__()
+        try:
+            resources.openai_client = AsyncOpenAI()
+            logger.info("OpenAI client initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error initializing OpenAI client: {e}")
         
-        resources.openai_client=AsyncOpenAI()
         resources.http_client= httpx.AsyncClient(
             timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=30.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             follow_redirects=True,
         )
         use_ssl = os.environ.get("OPENSEARCH_USE_SSL", "true").lower() in ("1", "true", "yes")
+        
         resources.opensearch_client=AsyncOpenSearch(
         hosts=[{"host":os.environ.get("OPENSEARCH_HOST"), "port": int(os.environ.get("OPENSEARCH_PORT"))}],
         http_auth=("admin", os.environ.get("OPENSEARCH_PASSWORD")),
@@ -93,12 +105,14 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
             app.state.s3_client = resources.s3_client
             app.state.redis_client = resources.redis_client
             app.state.pg_pool = resources.pg_pool
-            app.state.openai_client=resources.openai_client
+            app.state.openai_client = resources.openai_client
             app.state.http_client=resources.http_client
             app.state.gemini_client=resources.gemini_client
             app.state.mlflow_client=resources.mlflow_client
             app.state.opensearch_client=resources.opensearch_client
-           
+            app.state.celery_app=resources.celery_app
+            app.state.phoenix_client=resources.phoenix_client
+        logger.info("Resources initialized successfully.")
         yield resources
 
     finally:
@@ -120,6 +134,7 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
         if resources.opensearch_client is not None:
             await resources.opensearch_client.close()
 
+    
 
 P = ParamSpec("P")
 R = TypeVar("R")

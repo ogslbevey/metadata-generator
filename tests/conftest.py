@@ -1,8 +1,11 @@
+
+import os
+os.environ["REDIS_URL"] = "redis://default:local-redis-password@localhost:6379/0"
 from app.main import create_app, lifespan
 from httpx import AsyncClient, ASGITransport
 import pytest_asyncio
 import pytest
-
+import fitz 
 @pytest_asyncio.fixture
 async def client():
     app = create_app()
@@ -10,11 +13,15 @@ async def client():
         transport = ASGITransport(app=app)
         async with AsyncClient(base_url="http://test", transport=transport) as ac:
             yield ac
+
+
 @pytest_asyncio.fixture
 async def app():
     app = create_app()
     async with lifespan(app):
         yield app
+
+        
 # BACKEND_URL = "https://grand-extracteur-backend-production.up.railway.app"
 # @pytest_asyncio.fixture
 # async def client():

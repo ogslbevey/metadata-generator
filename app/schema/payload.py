@@ -10,6 +10,7 @@ class TablePayload(BaseModel):
 
 
 class ModelParameters(BaseModel):
+    provider: str = Field(..., description="The provider of the model, e.g., 'openai', 'anthropic', etc.")
     model_name: str="gpt-4.1"
     temperature: float=0.1
     top_p: Optional[float] = None
@@ -17,8 +18,10 @@ class ModelParameters(BaseModel):
     prompt_uri: Optional[str] = None
 
 class TableExtractionRequestPayload(BaseModel):
-    data: List[TablePayload]
+    hash: str
+    pages: List[int]
     model: ModelParameters
+    dpi:int=300
 
 class EovExtractionPayload(BaseModel):
     model: ModelParameters

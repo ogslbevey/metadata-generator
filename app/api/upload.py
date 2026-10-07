@@ -27,7 +27,8 @@ def send_ocr_tasks_for_pdf(
     pdf_url: str,
     hash_: str,
     batches: list[list[int]],
-    total_pages: int
+    total_pages: int,
+    ocr: bool = False
 ) -> str:
     sigs = []
     for batch in batches:
@@ -35,7 +36,7 @@ def send_ocr_tasks_for_pdf(
         sig = celery_app.signature(
             "app.tasks.ocr.pdf",
             kwargs={"url": pdf_url, "hash": hash_,
-                    "pages": batch, "total_pages": total_pages},
+                    "ocr": ocr, "pages": batch, "total_pages": total_pages},
             options={"queue": "ocr"},
         )
         sigs.append(sig)
@@ -43,27 +44,10 @@ def send_ocr_tasks_for_pdf(
     group_result = group(sigs).apply_async()
     group_result.save()
     return group_result.id
+    
 
 
-def send_render_tasks_for_pdf(
-    hash_: str,
-    pdf_url: str,
-    batches: list[int],
-    zoom_x: float,
-    zoom_y: float,
-) -> str:
-    sigs = []
-    for batch in batches:
-        sig = celery_app.signature(
-            "app.tasks.render.pdf",
-            kwargs={"hash_": hash_, "url": pdf_url, "page": batch, "zoom_x": zoom_x, "zoom_y": zoom_y},
-            options={"queue": "render"},
-        )
-        sigs.append(sig)
-        
-    group_result = group(sigs).apply_async()
-    group_result.save()
-    return group_result.id
+
 
 
 
@@ -103,6 +87,7 @@ async def upload_pdf(
     zoom_x: float = Form(3.0),
     zoom_y: float = Form(3.0),
     expires_in: int = Form(60 * 60 * 24),
+    ocr_force: bool = Form(False),
 ):
 
     if not file and not url:
@@ -136,6 +121,11 @@ async def upload_pdf(
     
     if end_page is None:
         end_page = total_pages
+    if not (1 <= start_page <= end_page <= total_pages):
+        raise HTTPException(status_code=400, detail=f"Invalid page range {start_page}-{end_page} (document has {total_pages} pages).")
+
+   
+    
     args = {
         "s3_client": s3_client,
         "pdf_bytes": pdf_bytes,
@@ -170,7 +160,12 @@ async def upload_pdf(
         else:
             pdf_url=url
         
-        batches=[list(range(i, min(i + pages_per_batch, total_pages + 1))) for i in range(1, total_pages + 1, pages_per_batch)]
+        batches = [
+                list(range(i, min(i + pages_per_batch, end_page + 1)))
+                for i in range(start_page, end_page + 1, pages_per_batch)
+            ]
+        
+        logger.info(f"Sending OCR tasks for PDF: {pdf_url}, hash: {hash_sha1}, total_pages: {total_pages}, batches: {batches}")
         group_id_ocr=send_ocr_tasks_for_pdf(pdf_url=pdf_url, hash_=hash_sha1, batches=batches,total_pages=total_pages)
         return {"ocr_task": group_id_ocr,"hash": hash_sha1,"total_pages": total_pages}
 

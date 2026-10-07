@@ -2,12 +2,13 @@ from opensearchpy import AsyncOpenSearch
 import logging
 from difflib import SequenceMatcher
 from app.utils.text_utils import preprocess_text
+
+from app.utils.opensearch_utils.index import SPANS_INDEX, PAGE_WINDOWS_INDEX
 logger = logging.getLogger(__name__)
 
 
 
-
-# Finds the best results and possible two pages that contain the query
+# # Finds the best results and possible two pages that contain the query
 async def search_windows(
     client: AsyncOpenSearch,
     doc_hash: str,
@@ -41,12 +42,13 @@ async def search_windows(
         "_source": ["doc_hash", "page_numbers", "page_start", "page_end"],
     }
 
-    response = await client.search(index="page_windows", body=body)
+    response = await client.search(index=PAGE_WINDOWS_INDEX, body=body)
     hits = response['hits']['hits']
     if not hits:
         return []
 
     return hits
+
 
 # Finds the best spans that contain the query by measuring sequential match in the given pages as a result of the search_windows function
 async def search_spans(
@@ -84,7 +86,7 @@ async def search_spans(
         ]
     }
 
-    response = await client.search(index="spans", body=body)
+    response = await client.search(index=SPANS_INDEX, body=body)
     return response["hits"]["hits"]
 
  
@@ -127,3 +129,4 @@ def reconstruct_query_spans(query: str, hits: list[dict]) -> list[dict]:
 
     _, start, end = best
     return spans[start : end + 1]
+

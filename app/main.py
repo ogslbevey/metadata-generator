@@ -1,25 +1,17 @@
 import os
 from fastapi import FastAPI, Depends, Request
-
 from contextlib import asynccontextmanager
-from app.api import upload,mlflow_res,detect_sensitive,extract,search,ocr_tasks,search
+from app.api import upload,mlflow_res,detect_sensitive,extract,search,ocr_tasks,list_models
 from app.logging_config import LOG_CONFIG
 import logging.config
-import mlflow
-from mlflow import MlflowClient
+
 import httpx
 import asyncio
-import os
-
 from app.core.context import resource_lifespan
-from fastapi.middleware.cors import CORSMiddleware
+
 logger = logging.getLogger(__name__)
 logging.config.dictConfig(LOG_CONFIG)
 
-
-# origins = os.getenv("CORS_ORIGINS").split(",")
-# logger.info(f"CORS origins set to: {origins}")
-#Define lifespan event handlers for startup and shutdown of the app
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup
@@ -52,13 +44,14 @@ def create_app(test: bool = False) -> FastAPI:
     #     allow_methods=["*"],
     #     allow_headers=["*"],
     # )
-    # app.include_router(chat.router)
+   
     app.include_router(upload.router)
     app.include_router(mlflow_res.router)
     app.include_router(detect_sensitive.router)
     app.include_router(extract.router)
     app.include_router(search.router)
     app.include_router(ocr_tasks.router)
+    app.include_router(list_models.router)
     @app.get("/health")
     async def health_check():
         return {"status": "ok"}
