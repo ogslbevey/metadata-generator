@@ -1,9 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException,Form, Depends, Request
 import mlflow
-from app.utils.mlflow_utils import build_traces_organized,add_feedback,Comment,MissingEov
+from app.utils.mlflow_utils import build_traces_organized_eov,get_all_spans,add_feedback,Comment,MissingEov
 import logging
 router = APIRouter(prefix="/mlflow", tags=["mlflow"])
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,15 +15,16 @@ async def get_mlflow_traces_organized(
 ):  
     mlflow_client = request.app.state.mlflow_client
     run = mlflow_client.get_run(run_id)
-    type_of_extraction = run.data.params.get("type", "unknown")
-    
-    logger.info(f"Fetching MLflow traces for run_id: {run_id} with type: {type_of_extraction}")
-    res=build_traces_organized(mlflow_client, run_id)
+    type_of_extraction = run.data.params.get("extraction_type", "unknown")
+    res = None
+    if type_of_extraction=="eov":
+        res=build_traces_organized_eov(mlflow_client, run_id)
+        
    
-    return {
-        "type": type_of_extraction,
-        "results": res.to_dict(orient="split")
-    }
+    else:
+        res=get_all_spans(mlflow_client, run_id)
+        logger.info(f"Retrieved {len(res)} spans for run_id {run_id} with extraction type {type_of_extraction}")
+    return {"type": type_of_extraction, "results": res.to_dict(orient="records")}
     
 @router.post("/add_comment", response_model=dict)
 async def add_comment(
@@ -30,7 +32,7 @@ async def add_comment(
     payload:Comment|MissingEov
     
 ):
-    r: redis.Redis = request.app.state.redis_client
+    mlflow_client = request.app.state.mlflow_client
     if not payload.data:
         raise HTTPException(status_code=404, detail="Data should include")
     username=payload.username or "anonymous"

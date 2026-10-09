@@ -1,3 +1,4 @@
+from functools import lru_cache
 from fastapi import APIRouter, UploadFile, File, HTTPException,Form, Depends, Request
 from openai import images
 from app.utils.extract_table import download_image_from_s3
@@ -7,223 +8,123 @@ import logging
 import mlflow
 import asyncio 
 import redis.asyncio as redis
-from app.schema.payload import TableExtractionRequestPayload, TablePayload, EovExtractionPayload
+from app.schema.payload import ExtractionPayload, ModelParameters,ExtractionTypes
 from app.schema.eov import EOVWithCitations
 from app.schema.metadata import MetadataSchemaCIOOS
 from app.schema.table import TablesResult
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from app.utils.ai_utils import generate_text_openai
 from typing import Optional, List
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_core.callbacks import AsyncCallbackHandler
 import random
 import pandas as pd
-import pymupdf
+from app.utils.token_count import system_prompt_tokens
 from pathlib import Path
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-import base64
 
+import base64
+from app.utils.ai_utils import load_prompt
+import httpx
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 router = APIRouter(prefix="/extract", tags=["extract"])
 
-@router.post("/metadata")
-async def extract(
-    req: Request,
-    payload: EovExtractionPayload,
-    semaphore: Optional[asyncio.Semaphore] = Depends(lambda: asyncio.Semaphore(10)),
-    ):
-  
-    mlflow_client=req.app.state.mlflow_client
-    if mlflow_client is None:
-        raise HTTPException(status_code=503, detail="MLflow client not available")
-    prompt_uri = payload.model.prompt_uri
-    prompt_name="metadata"
-    prompt:mlflow.entities.model_registry.PromptVersion= mlflow.genai.load_prompt(name_or_uri=f"prompts:/{prompt_name}@ref")
-    langchain_prompt = ChatPromptTemplate.from_messages(
-    prompt.to_single_brace_format()
-    )  
-    llm_params=payload.model.model_dump()
-    model_params=llm_params.copy()
-    model_params.pop("prompt_uri", None)  # remove if exists
-    llm = ChatOpenAI(**model_params)
-    
-    source = payload.source
-    hash_sha1 = payload.hash
-    
-    logger.info(f"Starting extraction with type:source: {source}, hash: {hash_sha1}")
-    response_format = MetadataSchemaCIOOS
-    text=payload.text
-    
-    
+
+
+class LogParamsHandler(AsyncCallbackHandler):
+    async def on_chat_model_start(self, serialized, messages, **kwargs):
+        params = kwargs.get("invocation_params", {})
+        logger.info("LLM call params: %s",
+                    {k: v for k, v in params.items() if k not in ("tools", "response_format")})
+        if "tools" in params or "response_format" in params:
+            logger.debug("Structured output config: %s",
+                         params.get("tools") or params.get("response_format"))
+            
+def get_chat_model(params: ModelParameters):
+    logger.info(f"Initializing chat model with parameters: {params.to_llm()}")
+    if params.provider == "openai":
+        return ChatOpenAI(**params.to_llm())
+    if params.provider == "anthropic":
+        return ChatAnthropic(**params.to_llm())
+    raise HTTPException(400, f"Unsupported model provider: {params.provider}")
+
+# Module level: one shared limit across all requests
+LLM_SEMAPHORE = asyncio.Semaphore(10)
+
+
+async def run_chain(chain, messages):
+    async with LLM_SEMAPHORE:          # limits each individual LLM call
+        return await chain.ainvoke(messages,config={"callbacks": [LogParamsHandler()]})
+
+
+def raw_results_to_results(raw_results: list[dict],payload: ExtractionPayload,extraction_type: ExtractionTypes) -> list[dict]:
+    results = []
     with mlflow.start_run() as run:
         run_id=run.info.run_id
-        # Use log_param instead of set_tag
-        mlflow_client.link_prompt_version_to_run(run_id, prompt)
-        mlflow.log_param("type", "metadata")
-        if source:
-            mlflow.log_param("source", source)
-        if hash_sha1:
-            mlflow.log_param("document_hash", hash_sha1)
-       
-        @mlflow.trace(name=f"main-metadata")
-        async def run_for_eov_metadata(params):
-            llm = ChatOpenAI(**params)
-            local_chain = langchain_prompt | llm.with_structured_output(response_format)
-            result =(await local_chain.ainvoke({"text": text})).model_dump()
-            
-            @mlflow.trace(name=f"assessment-metadata",span_type="LLM")
-            def trace_one_by_one(eov: dict):
-                return None
-                # Trace each EOV one by one if the citations exist
-            for eov in result.get("liste_eov") or [result]:
-                trace_one_by_one(eov)
-            return result
-        seeds = [random.randint(0, 10000000) for _ in range(payload.runs)]
-        coros = [run_for_eov_metadata({**model_params, "seed": seed}) for seed in seeds]
-        
-        results = [await coros[0]]
-        
-    return {"results": results, "run_id": run_id, "type": "metadata"}
+        if payload.source:
+            mlflow.log_param("source", payload.source)
+        if payload.hash:
+            mlflow.log_param("document_hash", payload.hash)
+        mlflow.log_param("extraction_type", extraction_type.value)
+        for params, res in zip(payload.model, raw_results):
+            entry = {"provider": params.provider, "model": params.model,
+                    "output": None, "usage_metadata": {}, "error": None}
+
+            if isinstance(res, Exception):
+                logger.error("Model %s failed: %r", params.model, res)
+                entry["error"] = str(res)
+            else:
+                entry["usage_metadata"] = dict(res["raw"].usage_metadata or {})
+                if res["parsing_error"] or res["parsed"] is None:
+                    logger.error("Model %s parsing failed: %r", params.model, res["parsing_error"])
+                    entry["error"] = str(res["parsing_error"] or "No parsed output")
+                else:
+                    entry["output"] = res["parsed"].model_dump()
 
 
+                @mlflow.trace(name=f"main-{extraction_type.value}",span_type="LLM")
+                def trace_main(usage_metadata: dict,model_params: ModelParameters=params):
+                    @mlflow.trace(name=f"assessment-{extraction_type.value}",span_type="LLM")
+                    def trace_one_by_one(data: dict):
+                        return None
+                    if isinstance(entry['output'], dict) and "liste_eov" not in entry['output']:
+                        trace_one_by_one(entry['output'])
+                    else:
+                        for eov in entry["output"]["liste_eov"] or [entry["output"]]:
+                            logger.info("Tracing EOV: %s", eov)
+                            trace_one_by_one(eov.copy())  # note: pass the copy, not the original
+                    return None
+                    
+                trace_main(entry["usage_metadata"], params)
+            results.append(entry)
+    return results,run_id
 
-
-@router.post("/eov")
-async def extract(
-    req: Request,
-    payload: EovExtractionPayload,
-    semaphore: Optional[asyncio.Semaphore] = Depends(lambda: asyncio.Semaphore(10)),
-    ):
-    logger.info(f"Received EOV extraction request for with payload: {payload}")
-    hash_sha1 = payload.hash
-    source = payload.source
-    opensearch_client=req.app.state.opensearch_client
-    mlflow_client=req.app.state.mlflow_client
-    if mlflow_client is None:
-        raise HTTPException(status_code=503, detail="MLflow client not available")
-    prompt_uri = payload.model.prompt_uri
-    prompt_name="eov"
-    prompt:mlflow.entities.model_registry.PromptVersion= mlflow.genai.load_prompt(name_or_uri=f"prompts:/{prompt_name}@ref")
-    langchain_prompt = ChatPromptTemplate.from_messages(
-    prompt.to_single_brace_format()
-    )  
-    llm_params=payload.model.model_dump()
-    model_params=llm_params.copy()
-    model_params.pop("prompt_uri", None)  # remove if exists
-    llm = ChatOpenAI(**model_params)
-    if source:
-        logger.info(f"Source provided: {source}")
-    if hash_sha1:
-        logger.info(f"Hash provided: {hash_sha1}")
-    # logger.info(f"Starting extraction for session_id: {session_id} with type:source: {source}, hash: {hash_sha1}")
-    response_format = EOVWithCitations
-    text=payload.text
-    with mlflow.start_run() as run:
-        run_id=run.info.run_id
-        # Use log_param instead of set_tag
-        mlflow_client.link_prompt_version_to_run(run_id, prompt)
-        mlflow.log_param("type", "eov")
-        if source:
-            mlflow.log_param("source", source)
-        if hash_sha1:
-            mlflow.log_param("document_hash", hash_sha1)
-        
-       
-        @mlflow.trace(name=f"main-eov")
-        async def run_for_eov_metadata(params):
-            llm = ChatOpenAI(**params)
-            local_chain = langchain_prompt | llm.with_structured_output(response_format)
-            result =(await local_chain.ainvoke({"text": text})).model_dump()
-            
-            @mlflow.trace(name=f"assessment-eov",span_type="LLM")
-            def trace_one_by_one(eov: dict):
-                return None
-                # Trace each EOV one by one if the citations exist
-            for eov in result.get("liste_eov") or [result]:
-                
-                trace_one_by_one(eov)  # note: pass the copy, not the original
-            return result
-        seeds = [random.randint(0, 10000000) for _ in range(payload.runs)]
-        coros = [run_for_eov_metadata({**model_params, "seed": seed}) for seed in seeds]
-        if payload.runs > 1:
-            results = await asyncio.gather(*coros, return_exceptions=True)
-
-        else:
-            results = [await coros[0]]
-      
-    return {"results": results, "run_id": run_id, "type": "eov"}
-
-
-def render_pages(pdf_bytes: bytes, pages: list[int], dpi: int = 300) -> list[str]:
-    """Blocking PyMuPDF work: returns base64 PNGs."""
-    images = []
-    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
-        for p in pages:
-            if not 1 <= p <= doc.page_count:
-                logger.warning(f"Page {p} out of range ({doc.page_count} pages).")
-                continue
-            png = doc[p - 1].get_pixmap(dpi=dpi).tobytes("png")
-           
-            images.append(base64.b64encode(png).decode("ascii"))
-    return images
-
-@router.post("/table")
-async def extract_table(
-    req: Request,
-    payload: TableExtractionRequestPayload,
-    semaphore: Optional[asyncio.Semaphore] = Depends(lambda: asyncio.Semaphore(10))
-):
-    logger.info(f"Received table extraction request for with payload: {payload}")
-    mlflow.set_experiment("observia_table_extraction")
-    if not payload.pages:
-        raise HTTPException(status_code=400, detail="No pages provided for table extraction.")
-    if not payload.hash:
-        raise HTTPException(status_code=400, detail="No document hash provided for table extraction.")
-    if not payload.model.provider:
-        raise HTTPException(status_code=400, detail="No model provider specified for table extraction.")
-    redis_client: redis.Redis = req.app.state.redis_client
-    pdf_bytes = await redis_client.hget(f"doc:{payload.hash}", "pdf_bytes")   # hget, not get
-    if not pdf_bytes:
-        raise HTTPException(status_code=404, detail="PDF bytes not found in Redis for the provided hash.")
-    # Don't block the event loop with rendering
-    images= await asyncio.to_thread(render_pages, pdf_bytes, payload.pages)
-    if not images:
-        raise HTTPException(400, "None of the requested pages exist in the document.")
-
-    model_params=payload.model.model_dump().copy()
-    llm = None
+@router.post("/{extraction_type}")
+async def extract(req: Request, extraction_type: ExtractionTypes, payload: ExtractionPayload):
+    mlflow.set_experiment("observia_extraction")
+    mlflow_client = req.app.state.mlflow_client
+    schema = EOVWithCitations if extraction_type == ExtractionTypes.eov else MetadataSchemaCIOOS
+    loaded_prompt = load_prompt(extraction_type.value)
     
+    user_content = (
+        f"Extract the following pages: {payload.pages} from the document."
+        if payload.pages else payload.text
+    )
+    messages = [
+        {"role": "system", "content": loaded_prompt},
+        {"role": "user", "content": user_content},
+    ]
+    
+    chains = [
+        get_chat_model(p).with_structured_output(schema, include_raw=True)
+        for p in payload.model
+    ]
+    raw_results = await asyncio.gather(
+        *(run_chain(c, messages) for c in chains), return_exceptions=True
+    )
 
-    # Use the model parameters from the payload
-    if payload.model.provider == "openai":
-        model_params.pop("provider", None)  # Remove provider key for OpenAI
-        model_params.pop("prompt_uri", None)  # Remove prompt_uri if it exists
-        model_params.update({"model": payload.model.model_name})
-        llm = ChatOpenAI(**model_params)
-        
-    
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported model provider: {payload.model.provider}")
-    if llm is not None:
-        messages = [
-                SystemMessage(content="You extract tables from document images accurately. "
-                                      "Preserve headers and cell values exactly. Also extract the normalizedbounding boxes of each table and cell in the format: "),
-                HumanMessage(content=[
-                    {"type": "text", "text": "Extract the tables from the following document images with bounding boxes."},
-                    *[
-                        {"type": "image_url",
-                         "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}}
-                        for b64 in images
-                    ],
-                ]),
-            ]
-        structured_llm = llm.with_structured_output(TablesResult)
-        async with semaphore:
-            result: TablesResult = await structured_llm.ainvoke(messages)
-            result_dict = result.model_dump()
-            bbox=result_dict.get("bbox", [])
-            if bbox:
-                result_dict["bbox"] = [bbox['x0'], bbox['y0'], bbox['x1'], bbox['y1']] if isinstance(bbox, dict) else bbox
-        return {"results":result_dict, "run_id": None, "type": "table"}
-    return HTTPException(status_code=500, detail="Failed to initialize LLM for table extraction.")
-    
+    results,run_id = raw_results_to_results(raw_results, payload, extraction_type)
+    logger.info(f"Run ID: {run_id}")
+
+    return {"type": extraction_type.value,"run_id": run_id, "results": results}

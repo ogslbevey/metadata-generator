@@ -7,25 +7,26 @@ from typing import Optional
 from fastapi import FastAPI
 import logging
 import httpx
+from langchain_openai import ChatOpenAI
 from app.deps.redis_init import init_redis, close_redis
 from app.deps.mlflow_init import setup_mlflow
-from app.deps.psql_init  import init_pg_pool, close_pg_pool
 from typing import Callable, Awaitable, TypeVar, Any, ParamSpec
 from app.tasks import celery_app
 import os
 import asyncio
 import functools
 import aioboto3
-from openai import AsyncOpenAI
 # from phoenix.client import AsyncClient
 import mlflow 
 from opensearchpy import AsyncOpenSearch
 from botocore.config import Config
 from dotenv import load_dotenv
+
 load_dotenv()  # Load environment variables from .env file
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
-logger.info(f"REDIS_URL: {os.getenv('REDIS_URL')}")
+logger.info(os.environ.get("ANTHROPIC_API_KEY is set" if os.environ.get("ANTHROPIC_API_KEY") else "ANTHROPIC_API_KEY is not set"))
+logger.info(os.environ.get("OPENAI_API_KEY is set" if os.environ.get("OPENAI_API_KEY") else "OPENAI_API_KEY is not set"))
 
 # All resource initialization and cleanup in one place
 @dataclass
@@ -34,8 +35,6 @@ class Resources:
     mlflow_client: object | None
     pg_pool: object | None
     s3_client: object | None
-    gemini_client: object | None
-    openai_client: object | None
     http_client: object | None = None
     opensearch_client: object | None = None
     celery_app: object | None = None
@@ -48,8 +47,6 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
         mlflow_client=None,
         pg_pool=None,
         s3_client=None,
-        gemini_client=None,
-        openai_client=None,
         http_client=None,
         opensearch_client=None,
         celery_app=celery_app,
@@ -79,12 +76,7 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
             ),
         )
         resources.s3_client = await s3_context.__aenter__()
-        try:
-            resources.openai_client = AsyncOpenAI()
-            logger.info("OpenAI client initialized successfully.")
-        except Exception as e:
-            logger.error(f"Error initializing OpenAI client: {e}")
-        
+       
         resources.http_client= httpx.AsyncClient(
             timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=30.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
@@ -104,14 +96,12 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
         if app is not None:
             app.state.s3_client = resources.s3_client
             app.state.redis_client = resources.redis_client
-            app.state.pg_pool = resources.pg_pool
-            app.state.openai_client = resources.openai_client
+         
             app.state.http_client=resources.http_client
-            app.state.gemini_client=resources.gemini_client
             app.state.mlflow_client=resources.mlflow_client
             app.state.opensearch_client=resources.opensearch_client
             app.state.celery_app=resources.celery_app
-            app.state.phoenix_client=resources.phoenix_client
+      
         logger.info("Resources initialized successfully.")
         yield resources
 
@@ -121,12 +111,6 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
 
         if resources.redis_client is not None:
             await close_redis(resources.redis_client)
-
-        if resources.pg_pool is not None:
-            await close_pg_pool(resources.pg_pool)
-
-        if resources.gemini_client is not None:
-            await resources.gemini_client.aio.aclose()
 
         if resources.http_client is not None:
             await resources.http_client.aclose()

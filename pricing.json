@@ -1,0 +1,334 @@
+{
+    "currency": "USD",
+    "per_tokens": 1000000,
+    "models": {
+        "openai/gpt-5.4-mini": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.75,
+                    "cache_read": 0.075,
+                    "output": 4.5,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5.4-nano": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.2,
+                    "cache_read": 0.02,
+                    "output": 1.25,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5.2": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 1.75,
+                    "cache_read": 0.175,
+                    "output": 14.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5.2-pro": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 21.0,
+                    "cache_read": null,
+                    "output": 168.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5.1": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 1.25,
+                    "cache_read": 0.125,
+                    "output": 10.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 1.25,
+                    "cache_read": 0.125,
+                    "output": 10.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5-mini": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.25,
+                    "cache_read": 0.025,
+                    "output": 2.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5-nano": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.05,
+                    "cache_read": 0.005,
+                    "output": 0.4,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-5-pro": {
+            "context_window": 400000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 15.0,
+                    "cache_read": null,
+                    "output": 120.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-4.1": {
+            "context_window": 1047576,
+            "max_output_tokens": 32768,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 2.0,
+                    "cache_read": 0.5,
+                    "output": 8.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-4.1-mini": {
+            "context_window": 1047576,
+            "max_output_tokens": 32768,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.4,
+                    "cache_read": 0.1,
+                    "output": 1.6,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-4.1-nano": {
+            "context_window": 1047576,
+            "max_output_tokens": 32768,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.1,
+                    "cache_read": 0.025,
+                    "output": 0.4,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-4o": {
+            "context_window": 128000,
+            "max_output_tokens": 16384,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 2.5,
+                    "cache_read": 1.25,
+                    "output": 10.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/gpt-4o-mini": {
+            "context_window": 128000,
+            "max_output_tokens": 16384,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 0.15,
+                    "cache_read": 0.075,
+                    "output": 0.6,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/o4-mini": {
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 1.1,
+                    "cache_read": 0.275,
+                    "output": 4.4,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/o3": {
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 2.0,
+                    "cache_read": 0.5,
+                    "output": 8.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/o3-mini": {
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+            "image_input": false,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 1.1,
+                    "cache_read": 0.55,
+                    "output": 4.4,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/o3-pro": {
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 20.0,
+                    "cache_read": null,
+                    "output": 80.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "openai/o1": {
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+            "image_input": true,
+            "tiers": [
+                {
+                    "max_input_tokens": null,
+                    "input": 15.0,
+                    "cache_read": 7.5,
+                    "output": 60.0,
+                    "cache_write_5m": null,
+                    "cache_write_1h": null
+                }
+            ],
+            "batch_discount": null
+        },
+        "anthropic/claude-haiku-5-5": {
+            "context_window": 1000000,
+            "max_output_tokens": 128000,
+            "image_input": true,
+            "batch_discount": 0.5,
+            "tiers": [
+                {
+                    "max_input_tokens": 100000,
+                    "input": 0.1,
+                    "output": 0.5,
+                    "cache_read": 0.01,
+                    "cache_write_5m": 0.125,
+                    "cache_write_1h": 0.2
+                },
+                {
+                    "max_input_tokens": null,
+                    "input": 0.5,
+                    "output": 2.5,
+                    "cache_read": 0.05,
+                    "cache_write_5m": 0.625,
+                    "cache_write_1h": 1.0
+                }
+            ]
+        }
+    }
+}

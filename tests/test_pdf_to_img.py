@@ -4,7 +4,7 @@ import logging
 import os
 
 import pytest
-import pymupdf
+
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,12 @@ async def test_pdf_to_image(client):
     payload = {
         "hash": "dd6153a13e17",
         "pages": [200],
-        "model": {},
+        "model": {
+            "provider": "openai",
+            "model": "gpt-4.1",
+            "temperature": 0.1
+    
+        }
     }
     response = await client.post("/extract/table", json=payload)
     logger.info(f"Response status code: {response.status_code}")

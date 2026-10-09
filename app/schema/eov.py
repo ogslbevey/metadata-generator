@@ -63,9 +63,61 @@ def _confidence_label(weight: int) -> str:
     }
     return reverse_mapping.get(weight, 'faible')
 
-# Split citation text if it contains ellipsis for searchability and traceability, but keep the original text as well for reference
+
+
+from typing import List, Literal, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+EOVName = Literal[
+    # Physique
+    "État de la mer",
+    "Contraintes sur la surface océanique",
+    "Glace de mer",
+    "Niveau marin",
+    "Température de surface",
+    "Température sous la surface",
+    "Courants de surface",
+    "Courants sous la surface",
+    "Salinité de surface",
+    "Salinité sous la surface",
+    "Flux de chaleur océanique de surface",
+    "Pression au fond de l'océan",
+    # Biogéochimie
+    "Oxygène",
+    "Nutriments",
+    "Carbone inorganique",
+    "Traceurs transitoires",
+    "Matière particulaire",
+    "Protoxyde d'azote",
+    "Isotopes stables du carbone",
+    "Carbone organique dissous",
+    # Biologie et écosystèmes
+    "Biomasse et diversité phytoplanctonique",
+    "Biomasse et diversité zooplanctonique",
+    "Abondance et diversité de poissons",
+    "Abondance et distribution de tortues, oiseaux et mammifères marins",
+    "Composition et couverture des coraux durs",
+    "Composition et couverture des herbiers marins",
+    "Composition et couverture de la canopée de macroalgues",
+    "Couverture et composition des mangroves",
+    "Biomasse et diversité microbienne",
+    "Abondance et distribution des invertébrés",
+    # Interdisciplinaire
+    "Couleur des océans",
+    "Débris marins",
+    "Paysage acoustique des océans",
+    # Autre
+    "Autre",
+]
+
+Confiance = Literal["très élevé", "élevé", "moyen", "faible"]
+CONFIANCE_ORDER = {"très élevé": 0, "élevé": 1, "moyen": 2, "faible": 3}
+
 class Citation(BaseModel):
-    citation_texte: list[str]
+    citation_texte: List[str] = Field(
+        description="Extraits copiés mot pour mot du texte, sans les modifier. "
+                    "Un élément par extrait ; ne pas utiliser « ... » pour relier deux extraits."
+    )
 
     @field_validator("citation_texte", mode="before")
     @classmethod
@@ -73,31 +125,22 @@ class Citation(BaseModel):
         if isinstance(v, str):
             return split_if_ellipsis(v)
         return v
-   
 
 
 class EOVWithReason(BaseModel):
-    eov: str
-    raison: str
-    citation: List[Citation]
-    confiance: str
-    
-   
-    
+    eov: EOVName = Field(description="Nom exact d'un EOV de la liste autorisée.")
+    raison: str = Field(description="Explication détaillée en français justifiant ce choix.")
+    citation: List[Citation] = Field(description="Citations exactes du texte qui justifient cet EOV.")
+    confiance: Confiance = Field(description="Niveau de confiance pour cet EOV.")
+
 
 class EOVWithCitations(BaseModel):
-    liste_eov: List[EOVWithReason]
-    
-    
-class ChatResponse(BaseModel):
-    data: EOVWithCitations  # or List[EOVWithCitations] if you prefer
-    seed: Optional[int] = None
+    liste_eov: List[EOVWithReason] = Field(
+        description="EOV identifiés, du plus au moins probable. Liste vide si aucun EOV."
+    )
 
+    @model_validator(mode="after")
+    def sort_by_confidence(self):
+        self.liste_eov.sort(key=lambda e: CONFIANCE_ORDER[e.confiance])
+        return self
 
-
-
-if __name__ == "__main__":
-    # Example usage
-    citation="Présentation du système de gestion des données des eaux coquillières par Yves Lamontagne et Martin Rodrigue, Environnement Canada ... L’implantation de ce système répond aux besoins opérationnels des ministères impliqués dans le"
-    citation_obj = Citation(citation_texte=citation)
-    print(citation_obj)
