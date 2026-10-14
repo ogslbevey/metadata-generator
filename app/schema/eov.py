@@ -119,28 +119,59 @@ class Citation(BaseModel):
                     "Un élément par extrait ; ne pas utiliser « ... » pour relier deux extraits."
     )
 
-    @field_validator("citation_texte", mode="before")
-    @classmethod
-    def validate_citation_texte(cls, v):
-        if isinstance(v, str):
-            return split_if_ellipsis(v)
-        return v
-
+  
 
 class EOVWithReason(BaseModel):
     eov: EOVName = Field(description="Nom exact d'un EOV de la liste autorisée.")
     raison: str = Field(description="Explication détaillée en français justifiant ce choix.")
-    citation: List[Citation] = Field(description="Citations exactes du texte qui justifient cet EOV.")
+    citation: List[str] = Field(description="Citations exactes du texte qui justifient cet EOV.")
     confiance: Confiance = Field(description="Niveau de confiance pour cet EOV.")
-
+    @field_validator("citation", mode="before")
+    @classmethod
+    def normalize_citation(cls, v):
+        # Single string -> list
+        if isinstance(v, str):
+            return [v]
+        # Flatten legacy format: [{"citation_texte": [...]}, ...]
+        if isinstance(v, list):
+            flat = []
+            for item in v:
+                if isinstance(item, dict) and "citation_texte" in item:
+                    texts = item["citation_texte"]
+                    flat.extend([texts] if isinstance(texts, str) else texts)
+                else:
+                    flat.append(item)
+            return flat
+        return v
 
 class EOVWithCitations(BaseModel):
     liste_eov: List[EOVWithReason] = Field(
         description="EOV identifiés, du plus au moins probable. Liste vide si aucun EOV."
     )
 
-    @model_validator(mode="after")
-    def sort_by_confidence(self):
-        self.liste_eov.sort(key=lambda e: CONFIANCE_ORDER[e.confiance])
-        return self
+    # @model_validator(mode="after")
+    # def sort_by_confidence(self):
+    #     self.liste_eov.sort(key=lambda e: CONFIANCE_ORDER[e.confiance])
+    #     return self
 
+
+
+# if __name__ == "__main__":
+#     # Example usage
+#     example = EOVWithCitations(
+#         liste_eov=[
+#             EOVWithReason(
+#                 eov="État de la mer",
+#                 raison="Le texte mentionne des conditions de mer agitées.",
+#                 citation=[Citation(citation_texte=["Le navire a affronté une mer agitée."])],
+#                 confiance="élevé"
+#             ),
+#             EOVWithReason(
+#                 eov="Température de surface",
+#                 raison="Le texte indique des variations de température à la surface.",
+#                 citation=[Citation(citation_texte=["La température de surface a augmenté de 2°C."])],
+#                 confiance="moyen"
+#             )
+#         ]
+#     )
+#     print(example.model_dump())

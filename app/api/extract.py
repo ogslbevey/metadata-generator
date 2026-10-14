@@ -22,7 +22,6 @@ import random
 import pandas as pd
 from app.utils.token_count import system_prompt_tokens
 from pathlib import Path
-
 import base64
 from app.utils.ai_utils import load_prompt
 import httpx
@@ -31,16 +30,6 @@ logging.basicConfig(level=logging.INFO)
 router = APIRouter(prefix="/extract", tags=["extract"])
 
 
-
-class LogParamsHandler(AsyncCallbackHandler):
-    async def on_chat_model_start(self, serialized, messages, **kwargs):
-        params = kwargs.get("invocation_params", {})
-        logger.info("LLM call params: %s",
-                    {k: v for k, v in params.items() if k not in ("tools", "response_format")})
-        if "tools" in params or "response_format" in params:
-            logger.debug("Structured output config: %s",
-                         params.get("tools") or params.get("response_format"))
-            
 def get_chat_model(params: ModelParameters):
     logger.info(f"Initializing chat model with parameters: {params.to_llm()}")
     if params.provider == "openai":
@@ -55,7 +44,7 @@ LLM_SEMAPHORE = asyncio.Semaphore(10)
 
 async def run_chain(chain, messages):
     async with LLM_SEMAPHORE:          # limits each individual LLM call
-        return await chain.ainvoke(messages,config={"callbacks": [LogParamsHandler()]})
+        return await chain.ainvoke(messages)
 
 
 def raw_results_to_results(raw_results: list[dict],payload: ExtractionPayload,extraction_type: ExtractionTypes) -> list[dict]:
@@ -81,7 +70,7 @@ def raw_results_to_results(raw_results: list[dict],payload: ExtractionPayload,ex
                     entry["error"] = str(res["parsing_error"] or "No parsed output")
                 else:
                     entry["output"] = res["parsed"].model_dump()
-
+                    logger.info(f"Model {params.model} output: {entry['output']}")
 
                 @mlflow.trace(name=f"main-{extraction_type.value}",span_type="LLM")
                 def trace_main(usage_metadata: dict,model_params: ModelParameters=params):
@@ -102,7 +91,7 @@ def raw_results_to_results(raw_results: list[dict],payload: ExtractionPayload,ex
 
 @router.post("/{extraction_type}")
 async def extract(req: Request, extraction_type: ExtractionTypes, payload: ExtractionPayload):
-    mlflow.set_experiment("observia_extraction")
+   
     mlflow_client = req.app.state.mlflow_client
     schema = EOVWithCitations if extraction_type == ExtractionTypes.eov else MetadataSchemaCIOOS
     loaded_prompt = load_prompt(extraction_type.value)
@@ -123,7 +112,7 @@ async def extract(req: Request, extraction_type: ExtractionTypes, payload: Extra
     raw_results = await asyncio.gather(
         *(run_chain(c, messages) for c in chains), return_exceptions=True
     )
-
+    logger.info(f"Raw results: {raw_results}")
     results,run_id = raw_results_to_results(raw_results, payload, extraction_type)
     logger.info(f"Run ID: {run_id}")
 

@@ -98,8 +98,7 @@ async def upload_pdf(
     s3_client = req.app.state.s3_client
     redis_client=req.app.state.redis_client
     semaphore = asyncio.Semaphore(max_concurrency)
-   
-    openai_client=req.app.state.openai_client
+ 
     pdf_bytes = (
         await load_pdf_bytes_from_url(app=req.app, file=file)
         if file

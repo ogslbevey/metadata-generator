@@ -20,8 +20,8 @@ def setup_mlflow()-> MlflowClient:
     uri = os.getenv("MLFLOW_TRACKING_URI")
     if uri:
         mlflow.set_tracking_uri(uri)
-    mlflow.set_experiment("observia")
-    # mlflow.langchain.autolog()
+    mlflow.set_experiment("observia_extraction")
+    mlflow.langchain.autolog()
     
     # mlflow.openai.autolog()
     client=MlflowClient()

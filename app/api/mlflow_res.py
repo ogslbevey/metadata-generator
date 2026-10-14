@@ -4,27 +4,22 @@ from app.utils.mlflow_utils import build_traces_organized_eov,get_all_spans,add_
 import logging
 router = APIRouter(prefix="/mlflow", tags=["mlflow"])
 import logging
-
+import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+import pandas as pd
+
 @router.get("/mlflow/{run_id}")
-async def get_mlflow_traces_organized(
-    run_id: str,
-    request: Request,
-):  
+async def get_mlflow_traces_organized(run_id: str, request: Request):
     mlflow_client = request.app.state.mlflow_client
     run = mlflow_client.get_run(run_id)
     type_of_extraction = run.data.params.get("extraction_type", "unknown")
-    res = None
-    if type_of_extraction=="eov":
-        res=build_traces_organized_eov(mlflow_client, run_id)
-        
+
+    res = build_traces_organized_eov(mlflow_client, run_id)
    
-    else:
-        res=get_all_spans(mlflow_client, run_id)
-        logger.info(f"Retrieved {len(res)} spans for run_id {run_id} with extraction type {type_of_extraction}")
-    return {"type": type_of_extraction, "results": res.to_dict(orient="records")}
+
+    return {"type": type_of_extraction, "results": res.to_dict(orient="split")}
     
 @router.post("/add_comment", response_model=dict)
 async def add_comment(

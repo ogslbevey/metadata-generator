@@ -51,101 +51,6 @@ class Comment(BaseModel):
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
 
-def _extract_io_from_span(span: Any) -> tuple[Any, Any]:
-    """
-    Best-effort extraction of (input, output) from an MLflow span.
-
-    Tries:
-      - span.inputs / span.outputs (newer/structured)
-      - span.attributes["mlflow.spanInputs"] / ["mlflow.spanOutputs"] (JSON strings)
-      - span.attributes["mlflow.spanInputs"] / ["mlflow.spanOutputs"] (dict-like)
-    """
-    attrs = getattr(span, "attributes", None) or {}
-
-    def _extract_from_attr(key: str) -> Any:
-        raw = attrs.get(key)
-        if raw is None:
-            return None
-
-        # Sometimes stored as a JSON string
-        if isinstance(raw, str):
-            try:
-                raw = json.loads(raw)
-            except Exception:
-                return None
-
-        # Often looks like {"input": ...} or {"output": ...}
-        if isinstance(raw, dict):
-            # Prefer exact field if present; otherwise return whole dict
-            if "input" in raw:
-                return raw.get("input")
-            if "output" in raw:
-                return raw.get("output")
-            
-            return raw
-
-        return raw
-
-    # Inputs
-    span_input = getattr(span, "inputs", None)
-    if span_input is None:
-        span_input = _extract_from_attr("mlflow.spanInputs")
-
-    # Outputs
-    span_output = getattr(span, "outputs", None)
-    if span_output is None:
-        span_output = _extract_from_attr("mlflow.spanOutputs")
-    
-    return span_input, span_output
-
-def find_mlflow_spans_with_inputs(
-    client: MlflowClient,
-    trace_id_mlflow: str,
-    target_name: str,
-    assessment_name: Optional[str] = None,
-    assessment_type: Optional[str] = None
-) -> list[dict]:
-    tr = client.get_trace(trace_id_mlflow)
-   
-    spans = getattr(getattr(tr, "data", None), "spans", None) or []
-    
-    out: list[dict] = []
-    seen: set[tuple[str, str]] = set()
-
-    for s in spans:
-        if getattr(s, "name", None) != target_name:
-            continue
-        # if assessment_name or assessment_type:
-        #     assessment = tr.search_assessments(
-        #         span_id=s.span_id,
-        #         type=assessment_type,
-        #         name=assessment_name
-
-        #     )
-        #     if not assessment:
-        #         continue
-        
-        key = (trace_id_mlflow, s.span_id)
-        if key in seen:
-            continue
-        seen.add(key)
-        
-        span_input, span_output = _extract_io_from_span(s)
-        
-        out.append(
-            {
-                "trace_id": trace_id_mlflow,
-                "span_id": s.span_id,
-                "parent_id": s.parent_id,
-                "name": s.name,
-                "input": span_input,
-                "output": span_output,
-                # "assessment": assessment,
-            }
-        )
-
-    return out
-
 
 
 def get_traces_by_run_id(mlflow_client, run_id: str):
@@ -158,7 +63,7 @@ def get_traces_by_run_id(mlflow_client, run_id: str):
     return run, traces
 
 
-def get_all_spans(mlflow_client, run_id: str) -> pd.DataFrame:
+def get_all_spans(mlflow_client, run_id: str,filter_by: str = "main-") -> pd.DataFrame:
     run, traces = get_traces_by_run_id(mlflow_client, run_id)
 
     rows = []
@@ -166,9 +71,9 @@ def get_all_spans(mlflow_client, run_id: str) -> pd.DataFrame:
         tags = trace.info.tags or {}
 
         for span in trace.data.spans:
-            if span.name.startswith("main-"):
+            if filter_by and span.name.startswith(filter_by):
                 continue
-
+           
             rows.append({
                 "trace_id": trace.info.trace_id,
                 "span_id": span.span_id,
@@ -183,33 +88,21 @@ def get_all_spans(mlflow_client, run_id: str) -> pd.DataFrame:
 
 def build_traces_organized_eov(mlflow_client, run_id: str) -> pd.DataFrame:
     run = mlflow_client.get_run(run_id)
- 
-        
     run_type = run.data.params.get("type")
+    rows=get_all_spans(mlflow_client, run_id)
     
-    run, traces = get_traces_by_run_id(mlflow_client, run_id)
-    traces_df = pd.json_normalize(traces, sep=".")
+    spans_df = pd.json_normalize(rows.to_dict(orient="records"), sep=".")
    
-    rows=get_all_spans(mlflow_client, run_id).to_dict(orient="records")
-    spans_df = pd.json_normalize(rows, sep=".")
-
     spans_df.columns = spans_df.columns.str.replace(r"^inputs\.data\.?", "", regex=True)
-    
-    try:
-        df = spans_df.explode("citation", ignore_index=True)
-        c = pd.json_normalize(df["citation"]).add_prefix("citation.")
-       
-        spans_df = pd.concat([df.drop(columns=["citation"]), c], axis=1)
-        spans_df = spans_df.rename(columns=lambda c: c.replace("citation.citation_texte", "citation"))
-        spans_df["citation"] = spans_df["citation"].apply(
-            lambda x: split_citation_list_if_needed(x) if isinstance(x,list) else []
-        )
-        spans_df['confiance_level']=spans_df['confiance'].apply(_confidence_weight)
-        spans_df = spans_df.sort_values(by=["eov", "confiance_level"], ascending=False).reset_index(drop=True)
-        spans_df.drop(columns=["confiance_level"], inplace=True)
-       
-    except KeyError as e:
-        print(f"KeyError occurred: {e}")
+    if run_type=="eov":
+        try:
+            spans_df['confiance_level']=spans_df['confiance'].apply(_confidence_weight)
+            spans_df = spans_df.sort_values(by=["eov", "confiance_level"], ascending=False).reset_index(drop=True)
+            # spans_df.drop(columns=["confiance_level"], inplace=True)
+        
+        except KeyError as e:
+            print(f"KeyError occurred: {e}")
+            
     
     return spans_df
 
