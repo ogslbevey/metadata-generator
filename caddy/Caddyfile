@@ -1,0 +1,68 @@
+{
+	admin off
+}
+
+:{$PORT} {
+	# Health check endpoint (no auth required)
+	handle /health {
+		respond "OK" 200
+	}
+
+	# All other routes require authentication
+	handle {
+		# Import generated basic auth configuration
+		import /etc/caddy/generated/auth.caddy
+
+		# Proxy all authenticated requests to MLFlow
+		reverse_proxy {$MLFLOW_URL} {
+			# Preserve original headers
+			header_up Host {upstream_hostport}
+			header_up X-Forwarded-Proto https
+		}
+	}
+
+	# Security headers
+	header {
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		X-XSS-Protection "1; mode=block"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# Optional: Rate limiting (uncomment to enable)
+	# rate_limit {
+	#     zone static_rl {
+	#         key {remote_ip}
+	#         events 100
+	#         window 1m
+	#     }
+	# }
+
+	# Logging
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# Example OAuth2 configuration (commented out by default)
+# Uncomment and configure for OAuth2 providers like Google, GitHub, etc.
+#
+# :443 {
+#     # OAuth2 with Google
+#     oauth {
+#         provider google {
+#             client_id {env.OAUTH2_CLIENT_ID}
+#             client_secret {env.OAUTH2_CLIENT_SECRET}
+#             redirect_uri https://your-domain.railway.app/oauth2/callback
+#         }
+#         # Allowed users/groups
+#         allow {
+#             email your-email@example.com
+#             # domain example.com
+#         }
+#     }
+#     
+#     reverse_proxy {$MLFLOW_HOST}:{$MLFLOW_PORT}
+# }
