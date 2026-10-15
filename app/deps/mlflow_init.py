@@ -23,6 +23,7 @@ def setup_mlflow()-> MlflowClient:
     mlflow.set_experiment("observia_extraction")
     mlflow.langchain.autolog()
     
+    
     # mlflow.openai.autolog()
     client=MlflowClient()
     logger.info(f"MLflow client set up with tracking URI: {mlflow.get_tracking_uri()}")

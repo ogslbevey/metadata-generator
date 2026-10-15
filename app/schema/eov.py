@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel, Field, field_validator,field_serializer
-from typing import List, Optional, Union
+from typing import List, Optional, Union,Literal
 from pandas import json_normalize
 import pandas as pd
 import json
@@ -9,6 +9,9 @@ from enum import Enum
 import codecs
 import unicodedata
 import logging
+
+
+
 
 
 
@@ -33,6 +36,8 @@ def split_citation_list_if_needed(citations: list[str]) -> list[str]:
     for c in citations:
         parts.extend(split_if_ellipsis(c))
     return parts
+
+
 AssessmentValue = Union[bool, float, str]
 # =============================================================================
 # CITATION MODELS
@@ -65,8 +70,30 @@ def _confidence_label(weight: int) -> str:
 
 
 
-from typing import List, Literal, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+def _coerce_citations(v) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        s = v.strip()
+        # Handles '["a","b"]' and '"a","b"' (array without brackets)
+        for candidate in (s, f"[{s}]"):
+            try:
+                parsed = json.loads(candidate)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(parsed, list):
+                return _coerce_citations(parsed)
+            if isinstance(parsed, str):
+                return [parsed.strip()]
+        return [s] if s else []
+    if isinstance(v, dict) and "citation_texte" in v:   # legacy format
+        return _coerce_citations(v["citation_texte"])
+    if isinstance(v, list):
+        out: list[str] = []
+        for item in v:
+            out.extend(_coerce_citations(item))
+        return out
+    return [str(v)]
 
 EOVName = Literal[
     # Physique
@@ -113,65 +140,27 @@ EOVName = Literal[
 Confiance = Literal["très élevé", "élevé", "moyen", "faible"]
 CONFIANCE_ORDER = {"très élevé": 0, "élevé": 1, "moyen": 2, "faible": 3}
 
-class Citation(BaseModel):
-    citation_texte: List[str] = Field(
-        description="Extraits copiés mot pour mot du texte, sans les modifier. "
-                    "Un élément par extrait ; ne pas utiliser « ... » pour relier deux extraits."
-    )
-
-  
 
 class EOVWithReason(BaseModel):
     eov: EOVName = Field(description="Nom exact d'un EOV de la liste autorisée.")
     raison: str = Field(description="Explication détaillée en français justifiant ce choix.")
-    citation: List[str] = Field(description="Citations exactes du texte qui justifient cet EOV.")
+    citation: List[str] = Field(
+        description=(
+            "Liste de citations exactes du texte. Chaque citation est un élément "
+            "distinct de la liste ; ne pas regrouper plusieurs citations dans une "
+            "seule chaîne et ne pas utiliser « ... » pour relier deux extraits."
+        )
+    )
     confiance: Confiance = Field(description="Niveau de confiance pour cet EOV.")
+
     @field_validator("citation", mode="before")
     @classmethod
     def normalize_citation(cls, v):
-        # Single string -> list
-        if isinstance(v, str):
-            return [v]
-        # Flatten legacy format: [{"citation_texte": [...]}, ...]
-        if isinstance(v, list):
-            flat = []
-            for item in v:
-                if isinstance(item, dict) and "citation_texte" in item:
-                    texts = item["citation_texte"]
-                    flat.extend([texts] if isinstance(texts, str) else texts)
-                else:
-                    flat.append(item)
-            return flat
-        return v
+        return split_citation_list_if_needed(_coerce_citations(v))
 
 class EOVWithCitations(BaseModel):
     liste_eov: List[EOVWithReason] = Field(
         description="EOV identifiés, du plus au moins probable. Liste vide si aucun EOV."
     )
 
-    # @model_validator(mode="after")
-    # def sort_by_confidence(self):
-    #     self.liste_eov.sort(key=lambda e: CONFIANCE_ORDER[e.confiance])
-    #     return self
-
-
-
-# if __name__ == "__main__":
-#     # Example usage
-#     example = EOVWithCitations(
-#         liste_eov=[
-#             EOVWithReason(
-#                 eov="État de la mer",
-#                 raison="Le texte mentionne des conditions de mer agitées.",
-#                 citation=[Citation(citation_texte=["Le navire a affronté une mer agitée."])],
-#                 confiance="élevé"
-#             ),
-#             EOVWithReason(
-#                 eov="Température de surface",
-#                 raison="Le texte indique des variations de température à la surface.",
-#                 citation=[Citation(citation_texte=["La température de surface a augmenté de 2°C."])],
-#                 confiance="moyen"
-#             )
-#         ]
-#     )
-#     print(example.model_dump())
+ 

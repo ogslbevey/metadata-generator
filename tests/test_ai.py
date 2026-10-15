@@ -23,10 +23,10 @@ async def test_extract(client):
             "model": "gpt-5-mini",
             
         },
-        {
-            "provider": "openai",
-            "model": "gpt-5-mini",
-        }
+        # {
+        #     "provider": "openai",
+        #     "model": "gpt-5-mini",
+        # }
         
         ],
         "text": text,
