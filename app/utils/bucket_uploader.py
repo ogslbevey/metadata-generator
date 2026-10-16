@@ -2,14 +2,42 @@ import os
 import aioboto3
 import fitz
 import pymupdf
-from typing import Any
+from typing import Any, Generator
 import asyncio
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 load_dotenv()
 from urllib.parse import urlparse, urlunparse
 import os
+from collections.abc import Iterator
+import pymupdf
 
+SUPPORTED_FORMATS = {"png", "jpg", "jpeg", "pnm", "pgm", "ppm", "pbm", "pam", "psd", "ps"}
+
+def render_pages(
+    pdf_bytes: bytes,
+    page_indexes: list[int],
+    zoom_x: float = 2.0,
+    zoom_y: float = 2.0,
+    img_type: str = "png",
+) -> Iterator[bytes]:
+    img_type = img_type.lower()
+    if img_type not in SUPPORTED_FORMATS:
+        raise ValueError(f"Unsupported image type: {img_type}")
+    return _render(pdf_bytes, page_indexes, zoom_x, zoom_y, img_type)
+
+
+def _render(pdf_bytes, page_indexes, zoom_x, zoom_y, img_type) -> Iterator[bytes]:
+    mat = pymupdf.Matrix(zoom_x, zoom_y)
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+        for page_index in page_indexes:
+            try:
+                pix = doc.load_page(page_index-1).get_pixmap(matrix=mat)
+                yield pix.tobytes(img_type)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to render page {page_index + 1} to {img_type.upper()}: {e}"
+                ) from e
 
 async def is_existing_object(s3_client: Any, bucket: str, key: str,sem: asyncio.Semaphore) -> bool:
     try:
@@ -19,7 +47,7 @@ async def is_existing_object(s3_client: Any, bucket: str, key: str,sem: asyncio.
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get("Code")
         if error_code in {"404", "NoSuchKey", "NotFound"}:
-            return False
+            return False,key
         else:
             raise
             
@@ -71,76 +99,19 @@ async def generate_presigned_url_for_image(s3_client: Any, bucket: str, key: str
         )
     return presigned_url
 
-def render_page_to_png(pdf_bytes: bytes, page_index: int, zoom_x: float, zoom_y: float) -> bytes:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    try:
-        pdf_page = doc.load_page(page_index)
-        mat = pymupdf.Matrix(zoom_x, zoom_y)
-        pix = pdf_page.get_pixmap(matrix=mat)
-        png_bytes = pix.tobytes("png")
-        return png_bytes
-    finally:
-        doc.close()
+async def upload_get_url(s3_client: Any, bucket: str, key: str, data: bytes, content_type: str, semaphore: asyncio.Semaphore, page_number: int, expires_in: int = 60 * 60 * 24) -> str:
+    async with semaphore:
+        await s3_client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+        presigned_url = await s3_client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": bucket,
+                "Key": key,
+            },
+            ExpiresIn=expires_in,
+        )
+    return { str(page_number):presigned_url}
 
-async def render_and_upload(
-    *,
-    s3_client: Any,
-    pdf_bytes:bytes,
-    page: dict,
-    hash_: str,
-    sem: asyncio.Semaphore,
-    zoom_x: float,
-    zoom_y: float,
-    expires_in: int = 60 * 60 * 24,
-    bucket: str | None = None,
-) -> dict:
-    bucket = bucket or os.getenv("AWS_BUCKET_NAME")
-    if not bucket:
-        raise ValueError("AWS_BUCKET_NAME is not set")
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        async with sem:
-            page_number = page["page"]          # 1-based for API output
-            page_index = page_number - 1        # 0-based for fitz
-            object_key = f"{hash_}/images/page-{page_number}.png"
 
-            try:
-                await s3_client.head_object(Bucket=bucket, Key=object_key)
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code")
-
-                if error_code in {"404", "NoSuchKey", "NotFound"}:
-                    pdf_page = doc.load_page(page_index)
-                    mat = pymupdf.Matrix(zoom_x, zoom_y)
-                    pix = pdf_page.get_pixmap(matrix=mat)
-                    png_bytes = pix.tobytes("png")
-
-                    await s3_client.put_object(
-                        Bucket=bucket,
-                        Key=object_key,
-                        Body=png_bytes,
-                        ContentType="image/png",
-                    )
-                else:
-                    raise
-
-            presigned_url = await s3_client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": bucket,
-                    "Key": object_key,
-                },
-                ExpiresIn=expires_in,
-            )
-
-            return {
-                "page_number": page_number,
-                "key": object_key,
-                "url": presigned_url,
-                }
-                
-            
-    finally:
-        doc.close()
 
 

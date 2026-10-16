@@ -1,3 +1,4 @@
+from aiohttp import ClientError
 from fastapi import APIRouter, UploadFile, File, HTTPException,Form, Depends, Request
 import uuid
 import fitz
@@ -8,7 +9,7 @@ import logging
 import asyncio
 from app.utils.parser import load_pdf_bytes_from_url
 from fastapi.responses import StreamingResponse
-from app.utils.bucket_uploader import render_and_upload, upload_pdf_to_s3,is_existing_object,generate_presigned_url_for_image
+from app.utils.bucket_uploader import render_pages,upload_pdf_to_s3,generate_presigned_url_for_image,upload_get_url
 from typing import Any
 from app.utils.text_utils import preprocess_text
 from app.tasks import celery_app
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-TTL_SECONDS = 60*60
+TTL_SECONDS = 60*60*24  # 24 hours
 
 
 def send_ocr_tasks_for_pdf(
@@ -46,33 +47,6 @@ def send_ocr_tasks_for_pdf(
     return group_result.id
     
 
-
-
-
-
-
-async def is_existing_objects(s3_client: Any, page_indexes: list[int], hash_: str, bucket: str | None = None, sem: asyncio.Semaphore | None = None) -> bool:
-
-    bucket = bucket or os.getenv("AWS_BUCKET_NAME")
-    if not bucket:
-        raise ValueError("AWS_BUCKET_NAME is not set")
-    tasks=[]
-    for page_index in page_indexes:
-        object_key = f"{hash_}/images/page_{page_index}.png"
-        tasks.append(is_existing_object(s3_client=s3_client, bucket=bucket, key=object_key, sem=sem))
-    results=await asyncio.gather(*tasks)
-    return all(results)
-
-async def get_presigned_urls_for_images(s3_client: Any, page_indexes: list[int], hash_: str, bucket: str | None = None, sem: asyncio.Semaphore | None = None, expires_in: int = 60 * 60 * 24) -> dict:
-    bucket = bucket or os.getenv("AWS_BUCKET_NAME")
-    if not bucket:
-        raise ValueError("AWS_BUCKET_NAME is not set")
-    tasks=[]
-    for page_index in page_indexes:
-        object_key = f"{hash_}/images/page_{page_index}.png"
-        tasks.append(generate_presigned_url_for_image(s3_client=s3_client, bucket=bucket, key=object_key, semaphore=sem, expires_in=expires_in))
-    urls=await asyncio.gather(*tasks)
-    return {f"page_{page_index}": url for page_index, url in zip(page_indexes, urls)}
 
 
 @router.post("/pdf")
@@ -107,6 +81,7 @@ async def upload_pdf(
     
     hash_sha1 = hashlib.sha256(pdf_bytes).hexdigest()[:12]
     document_key = f"doc:{hash_sha1}"
+    logger.info(f"Storing PDF in Redis: {document_key}")
     await redis_client.hset(
     document_key,
     mapping={"pdf_bytes": pdf_bytes}
@@ -171,4 +146,40 @@ async def upload_pdf(
     finally:
             logger.info(f"Closing document: {document_key}")
             doc.close()
+
+class UploadResponse(BaseModel):
+    hash: str
+    pages:list[int]
+    dpi:int=150
+
+BUCKET = os.environ["AWS_BUCKET_NAME"]
+
+@router.post("/image")
+async def upload_images(req: Request, payload: UploadResponse):
+    redis_client = req.app.state.redis_client
+    s3_client = req.app.state.s3_client
+
+    pdf_bytes = await redis_client.hget(f"doc:{payload.hash}", "pdf_bytes")
+    if not pdf_bytes:
+        raise HTTPException(404, "PDF not found in Redis. Please upload the PDF first.")
+
+    scale = payload.dpi / 72.0
+    logger.info(f"Rendering images for hash {payload.hash} at scale {scale} (DPI: {payload.dpi})")
+    semaphore = asyncio.Semaphore(10)
+    image_bytes = list(render_pages(pdf_bytes, page_indexes=payload.pages, zoom_x=scale, zoom_y=scale, img_type="png"))
+    logger.info(f"Rendered images for hash {payload.hash}: {len(image_bytes)}")
+    async def process(page: int,image_bytes: bytes) -> dict[str, str]:
     
+        return await upload_get_url(
+            s3_client, bucket=BUCKET,
+            key=f"{payload.hash}/images/page-{page}.png",
+            data=image_bytes, content_type="image/png",
+            semaphore=semaphore, page_number=page,
+        )
+
+    results = await asyncio.gather(*(process(p,i) for p,i in zip(payload.pages,image_bytes)))
+    logger.info(f"Uploaded images for hash {payload.hash}: {results}")
+    urls = {k: v for r in results for k, v in r.items()}
+    return {"hash": payload.hash, "urls": urls}
+    
+
