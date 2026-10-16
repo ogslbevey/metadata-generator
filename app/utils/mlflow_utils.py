@@ -63,7 +63,7 @@ def get_traces_by_run_id(mlflow_client, run_id: str):
     return run, traces
 
 
-def get_all_spans(mlflow_client, run_id: str,filter_by: str = "main-") -> pd.DataFrame:
+def get_all_spans(mlflow_client, run_id: str,filter_by: str = "assessment-") -> pd.DataFrame:
     run, traces = get_traces_by_run_id(mlflow_client, run_id)
 
     rows = []
@@ -71,18 +71,20 @@ def get_all_spans(mlflow_client, run_id: str,filter_by: str = "main-") -> pd.Dat
         tags = trace.info.tags or {}
 
         for span in trace.data.spans:
-            if filter_by and span.name.startswith(filter_by):
-                continue
+            if span.name.startswith(filter_by):
+            
+          
            
-            rows.append({
-                "trace_id": trace.info.trace_id,
-                "span_id": span.span_id,
-                "parent_id": span.parent_id,
-                "name": span.name,
-                "inputs": span.inputs,
-                "outputs": span.outputs,
-               
-            })
+                rows.append({
+                    "trace_id": trace.info.trace_id,
+                    "span_id": span.span_id,
+                    "parent_id": span.parent_id,
+                    "name": span.name,
+                    "inputs": span.inputs,
+                    "outputs": span.outputs,
+                
+                })
+           
 
     return pd.DataFrame(rows)
 
@@ -92,8 +94,8 @@ def build_traces_organized_eov(mlflow_client, run_id: str) -> pd.DataFrame:
     rows=get_all_spans(mlflow_client, run_id)
     
     spans_df = pd.json_normalize(rows.to_dict(orient="records"), sep=".")
-   
-    spans_df.columns = spans_df.columns.str.replace(r"^inputs\.data\.?", "", regex=True)
+    spans_df.columns = spans_df.columns.str.replace(r"^inputs\.?", "", regex=True)
+    # spans_df.columns = spans_df.columns.str.replace(r"^inputs\.data\.?", "", regex=True)
     if run_type=="eov":
         try:
             spans_df['confiance_level']=spans_df['confiance'].apply(_confidence_weight)

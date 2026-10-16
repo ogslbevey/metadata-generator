@@ -104,6 +104,8 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
       
         logger.info("Resources initialized successfully.")
         yield resources
+        mlflow.flush_trace_async_logging(terminate=True)
+        
 
     finally:
         if s3_context is not None:

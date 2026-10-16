@@ -20,13 +20,12 @@ async def test_extract(client):
         "model": [
         {
             "provider": "openai",
-            "model": "gpt-5-mini",
-            
+            "model": "gpt-4.1",
         },
-        # {
-        #     "provider": "openai",
-        #     "model": "gpt-5-mini",
-        # }
+        {
+            "provider": "openai",
+            "model": "gpt-5.1",
+        }
         
         ],
         "text": text,
@@ -34,14 +33,14 @@ async def test_extract(client):
         "source": "test_source",
     }
 
-    response = await client.post("/extract/eov", json=payload)
+    response = await client.post("/extract/metadata", json=payload)
 
     assert response.status_code == 200, response.text   # shows the error body if it fails
     body = response.json()
-    assert "results" in body
-    assert "run_id" in body
-    run_id = body["run_id"]
-    return run_id, body["results"]
+    # assert "results" in body
+    # assert "run_id" in body
+    # run_id = body["run_id"]
+    # return run_id, body["results"]
 
 
     

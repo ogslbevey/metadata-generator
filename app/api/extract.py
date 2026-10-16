@@ -1,119 +1,150 @@
-from functools import lru_cache
-from fastapi import APIRouter, UploadFile, File, HTTPException,Form, Depends, Request
-from openai import images
-from app.utils.extract_table import download_image_from_s3
-from PIL import Image
-from io import BytesIO
+import asyncio
 import logging
+
 import mlflow
-import asyncio 
-import redis.asyncio as redis
-from app.schema.payload import ExtractionPayload, ModelParameters,ExtractionTypes
+from fastapi import APIRouter, HTTPException, Request
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
+
 from app.schema.eov import EOVWithCitations
 from app.schema.metadata import MetadataSchemaCIOOS
-from app.schema.table import TablesResult
-from app.utils.ai_utils import generate_text_openai
-from typing import Optional, List
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_core.callbacks import AsyncCallbackHandler
-import random
-import pandas as pd
-from app.utils.token_count import system_prompt_tokens
-from pathlib import Path
-import base64
+from app.schema.payload import ExtractionPayload, ExtractionTypes, ModelParameters
 from app.utils.ai_utils import load_prompt
-import httpx
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 router = APIRouter(prefix="/extract", tags=["extract"])
+
+# One shared limit on concurrent LLM calls across all requests
+LLM_SEMAPHORE = asyncio.Semaphore(10)
+
+# Keys containing these words are never logged or put into traces
+SECRET_MARKERS = ("key", "token", "secret")
+
+
+def safe_params(params: ModelParameters) -> dict:
+    """Model parameters without API keys or other secrets."""
+    return {
+        k: v for k, v in params.to_llm().items()
+        if not any(m in k.lower() for m in SECRET_MARKERS)
+    }
 
 
 def get_chat_model(params: ModelParameters):
-    logger.info(f"Initializing chat model with parameters: {params.to_llm()}")
+    logger.info("Initializing chat model with parameters: %s", safe_params(params))
     if params.provider == "openai":
         return ChatOpenAI(**params.to_llm())
     if params.provider == "anthropic":
         return ChatAnthropic(**params.to_llm())
     raise HTTPException(400, f"Unsupported model provider: {params.provider}")
 
-# Module level: one shared limit across all requests
-LLM_SEMAPHORE = asyncio.Semaphore(10)
+
+def assess(data: dict, extraction_type: ExtractionTypes) -> dict:
+    """One assessment span per extracted item, nested under the model's main span."""
+    with mlflow.start_span(
+        name=f"assessment-{extraction_type.value}", span_type="EVALUATOR"
+    ) as span:
+        span.set_inputs(data)
+        result = {}  # TODO: your assessment logic here
+        span.set_outputs(result)
+        return result
 
 
-async def run_chain(chain, messages):
-    async with LLM_SEMAPHORE:          # limits each individual LLM call
-        return await chain.ainvoke(messages)
+def iter_items(parsed):
+    """EOV results are a list under liste_eov; metadata results are a single object."""
+    if hasattr(parsed, "liste_eov"):
+        return parsed.liste_eov or []
+    return [parsed]
 
 
-def raw_results_to_results(raw_results: list[dict],payload: ExtractionPayload,extraction_type: ExtractionTypes) -> list[dict]:
-    results = []
-    with mlflow.start_run() as run:
-        run_id=run.info.run_id
-        if payload.source:
-            mlflow.log_param("source", payload.source)
-        if payload.hash:
-            mlflow.log_param("document_hash", payload.hash)
-        mlflow.log_param("extraction_type", extraction_type.value)
-        for params, res in zip(payload.model, raw_results):
-            entry = {"provider": params.provider, "model": params.model,
-                    "output": None, "usage_metadata": {}, "error": None}
+async def run_chain(
+    params: ModelParameters,
+    schema,
+    messages: list,
+    extraction_type: ExtractionTypes,
+) -> dict:
+    entry = {
+        "provider": params.provider,
+        "model": params.model,
+        "served_model": None,
+        "output": None,
+        "usage_metadata": {},
+        "error": None,
+        "trace_id": None,
+    }
 
-            if isinstance(res, Exception):
-                logger.error("Model %s failed: %r", params.model, res)
-                entry["error"] = str(res)
-            else:
-                entry["usage_metadata"] = dict(res["raw"].usage_metadata or {})
-                if res["parsing_error"] or res["parsed"] is None:
-                    logger.error("Model %s parsing failed: %r", params.model, res["parsing_error"])
-                    entry["error"] = str(res["parsing_error"] or "No parsed output")
-                else:
-                    entry["output"] = res["parsed"].model_dump()
-                    logger.info(f"Model {params.model} output: {entry['output']}")
+    # The main span is opened BEFORE the LLM call, so the autologged
+    # LangChain spans (RunnableSequence, ChatOpenAI, ...) nest under it.
+    with mlflow.start_span(
+        name=f"main-{extraction_type.value}-{params.model}", span_type="CHAIN"
+    ) as span:
+        entry["trace_id"] = span.trace_id  # MLflow 2.x: span.request_id
+        span.set_inputs({"model_params": safe_params(params), "messages": messages})
 
-                @mlflow.trace(name=f"main-{extraction_type.value}",span_type="LLM")
-                def trace_main(usage_metadata: dict,model_params: ModelParameters=params):
-                    @mlflow.trace(name=f"assessment-{extraction_type.value}",span_type="LLM")
-                    def trace_one_by_one(data: dict):
-                        return None
-                    if isinstance(entry['output'], dict) and "liste_eov" not in entry['output']:
-                        trace_one_by_one(entry['output'])
-                    else:
-                        for eov in entry["output"]["liste_eov"] or [entry["output"]]:
-                            logger.info("Tracing EOV: %s", eov)
-                            trace_one_by_one(eov.copy())  # note: pass the copy, not the original
-                    return None
-                    
-                trace_main(entry["usage_metadata"], params)
-            results.append(entry)
-    return results,run_id
+        # Building the model inside the span means a bad config fails only this model
+        try:
+            chain = get_chat_model(params).with_structured_output(schema, include_raw=True)
+            async with LLM_SEMAPHORE:  # hold the slot only for the LLM call
+                raw_result = await chain.ainvoke(messages)
+        except Exception as e:
+            logger.exception("Model %s failed", params.model)
+            entry["error"] = str(e)
+            span.set_status("ERROR")
+            span.set_outputs(entry)
+            return entry
+
+        raw = raw_result["raw"]
+        meta = raw.response_metadata or {}
+        entry["served_model"] = meta.get("model_name") or meta.get("model")
+        entry["usage_metadata"] = dict(raw.usage_metadata or {})
+        span.set_attributes({
+            "usage": entry["usage_metadata"],
+            "served_model": entry["served_model"],
+            "finish_reason": meta.get("finish_reason") or meta.get("stop_reason"),
+        })
+
+        parsed = raw_result["parsed"]
+        if raw_result["parsing_error"] or parsed is None:
+            entry["error"] = str(raw_result["parsing_error"] or "No parsed output")
+            logger.error("Model %s parsing failed: %s", params.model, entry["error"])
+            span.set_status("ERROR")
+            span.set_outputs(entry)
+            return entry
+
+        for item in iter_items(parsed):
+            assess(item.model_dump(), extraction_type)
+
+        entry["output"] = parsed.model_dump()
+        span.set_outputs(entry)
+        return entry
+
 
 @router.post("/{extraction_type}")
 async def extract(req: Request, extraction_type: ExtractionTypes, payload: ExtractionPayload):
-   
-    mlflow_client = req.app.state.mlflow_client
     schema = EOVWithCitations if extraction_type == ExtractionTypes.eov else MetadataSchemaCIOOS
-    loaded_prompt = load_prompt(extraction_type.value)
-    
+
     user_content = (
         f"Extract the following pages: {payload.pages} from the document."
         if payload.pages else payload.text
     )
     messages = [
-        {"role": "system", "content": loaded_prompt},
+        {"role": "system", "content": load_prompt(extraction_type.value)},
         {"role": "user", "content": user_content},
     ]
-    
-    chains = [
-        get_chat_model(p).with_structured_output(schema, include_raw=True)
-        for p in payload.model
-    ]
-    raw_results = await asyncio.gather(
-        *(run_chain(c, messages) for c in chains), return_exceptions=True
-    )
-    logger.info(f"Raw results: {raw_results}")
-    results,run_id = raw_results_to_results(raw_results, payload, extraction_type)
-    logger.info(f"Run ID: {run_id}")
+    logger.info("Starting extraction of type %s with %d models", extraction_type.value, len(payload.model))
+    with mlflow.start_run() as run:
+        mlflow.log_param("extraction_type", extraction_type.value)
+        if payload.source:
+            mlflow.log_param("source", payload.source)
+        if payload.hash:
+            mlflow.log_param("document_hash", payload.hash)
 
-    return {"type": extraction_type.value,"run_id": run_id, "results": results}
+        # run_chain catches its own errors, so every model returns an entry
+        results = await asyncio.gather(
+            *(run_chain(p, schema, messages, extraction_type) for p in payload.model)
+        )
+
+    return {
+        "type": extraction_type.value,
+        "run_id": run.info.run_id,
+        "results": results,
+    }

@@ -21,7 +21,7 @@ def setup_mlflow()-> MlflowClient:
     if uri:
         mlflow.set_tracking_uri(uri)
     mlflow.set_experiment("observia_extraction")
-    mlflow.langchain.autolog()
+    # mlflow.langchain.autolog(log_traces=True, silent=False)
     
     
     # mlflow.openai.autolog()
