@@ -1,0 +1,9 @@
+FROM minio/minio
+
+# copy over the startup script
+RUN mkdir /scripts/ 
+COPY ./startup.sh /scripts/startup.sh
+RUN chmod u+x /scripts/startup.sh 
+
+# start up the minio server
+ENTRYPOINT [ "/scripts/startup.sh" ] 
