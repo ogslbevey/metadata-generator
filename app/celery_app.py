@@ -2,8 +2,7 @@ import os
 from celery import Celery
 from dotenv import load_dotenv
 import os
-import boto3
-from botocore.config import Config
+
 import pymupdf 
 import pymupdf4llm
 import logging
@@ -21,7 +20,7 @@ celery_app = Celery(
     "ocr_pipeline",
     broker=os.getenv("REDIS_URL"),
     backend=os.getenv("REDIS_URL"),
-    include=["app.tasks.ocr", "app.tasks.render"], 
+    include=["app.tasks.ocr"], 
 )
 
 celery_app.conf.update(
@@ -46,11 +45,11 @@ celery_app.conf.update(
     },
 )
 
-s3_client = boto3.client(
-    's3',
-    endpoint_url=os.getenv('AWS_ENDPOINT_URL'),
-    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
-    region_name=os.getenv('AWS_REGION')
-)
+# s3_client = boto3.client(
+#     's3',
+#     endpoint_url=os.getenv('AWS_ENDPOINT_URL'),
+#     aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+#     aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+#     region_name=os.getenv('AWS_REGION')
+# )
 
