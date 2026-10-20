@@ -30,6 +30,7 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "uv run celery -A ${CELERY_APP} worker \
     -Q ${CELERY_QUEUES} \
     --pool=prefork \
+    # --concurrency=${CELERY_CONCURRENCY} \
     --autoscale=${AUTOSCALE_MIN},${AUTOSCALE_MAX} \
     --loglevel=${CELERY_LOGLEVEL} \
     --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD} \

@@ -1,60 +1,37 @@
-from app.celery_app import celery_app
-import logging
-import httpx
-import pymupdf
-import fitz
-import io
-import pymupdf4llm
+import gc
 import json
-import copy
-from io import BytesIO
-import pandas as pd
+import logging
+import pymupdf
+import pymupdf4llm
+
+from app.celery_app import celery_app
 from app.tasks.cache import get_pdf_bytes
 
 logger = logging.getLogger(__name__)
 
-boxes_to_choose=["text","section-header","table","caption"]
-keys_to_remove = [
-    "size",
-    "flags",
-    "bidi",
-    "char_flags",
-    "font",
-    "color",
-    "alpha",
-    "ascender",
-    "descender",
-    "origin",
-    "dir",
-    "line"
-]
 
-
-
-@celery_app.task(
-    bind=True,
-    name="app.tasks.ocr.pdf",
-)
-def get_pdf_layout(self, url: str, hash: str, pages: list, total_pages: int,ocr: bool=False) -> dict:
-    pages_decrement = [page - 1 for page in pages]
+@celery_app.task(bind=True, name="app.tasks.ocr.pdf")
+def get_pdf_layout(self, url: str, hash: str, pages: list,
+                   total_pages: int, ocr: bool = False) -> dict:
+    page_indexes = [page - 1 for page in pages]
     doc = None
-    pdf_bytes = get_pdf_bytes(hash, url)
     try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        pdf_bytes = get_pdf_bytes(hash, url)
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        del pdf_bytes  # the document holds its own data from here on
+
         md = pymupdf4llm.to_json(
             doc,
-            pages=pages_decrement,
+            pages=page_indexes,
             header=False,
             footer=False,
             ocr_language="eng+fra",
             force_ocr=ocr,
         )
-        
-        layout = json.loads(md)
-        layout_pages = layout.get("pages", []) or []
-        
+        layout_pages = json.loads(md).get("pages", []) or []
+        del md
 
-        return {                      
+        return {
             "url": url,
             "status": "SUCCESS",
             "type": "pymupdf4llm",
@@ -62,20 +39,12 @@ def get_pdf_layout(self, url: str, hash: str, pages: list, total_pages: int,ocr:
             "layout": layout_pages,
         }
 
-    except Exception as e:
-        logger.error(f"Error processing PDF {url}: {e}")
+    except Exception:
+        logger.exception("Error processing PDF %s", url)
         raise
+
     finally:
-        if doc:
+        if doc is not None:
             doc.close()
-
-   
-    
-            
-
-
-    
-
-
-
-
+        pymupdf.TOOLS.store_shrink(100)  # empty MuPDF's internal cache
+        gc.collect()
