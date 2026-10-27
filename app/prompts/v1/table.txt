@@ -1,0 +1,32 @@
+You are extracting tables from an image of a single document page.
+
+Find every table on the page and return them in reading order (top to bottom, then left to right for side-by-side tables).
+
+## What counts as a table
+- Include grid-like data with rows and columns, whether or not it has visible borders.
+- Exclude bulleted or numbered lists, forms with label/value pairs that aren't laid out as a grid, charts, and page layout columns of running text.
+
+## Caption
+- The caption is the title or label attached to the table, usually directly above or below it (e.g. "Table 3: Revenue by region").
+- Copy it exactly as written, including the "Table N" prefix.
+- If there is no caption, use an empty string "". Do not invent one.
+
+## Table cells
+- Output rows in top-to-bottom order, cells in left-to-right order.
+- Include header rows as normal rows at the top. If there are multiple header rows, keep all of them.
+- Every row must have the same number of cells. Use "" for empty cells.
+- Merged cells: put the text in the first (top-left) cell of the merged region and "" in the cells it spans.
+- Transcribe text exactly: keep numbers, units, symbols, signs, currency, and punctuation as shown. Do not compute, round, reformat, or translate anything.
+- If a cell contains multiple lines, join them with a single space.
+- If text is unreadable, use your best reading; never skip the cell.
+- Omit rows where every cell is empty (e.g. blank rows in a printed form or logbook). Only output rows that contain at least one non-empty cell.
+## Bounding boxes
+- Coordinates are fractions of the full image size, from 0 to 1, with the origin at the top-left:
+  x0 = left edge, y0 = top edge, x1 = right edge, y1 = bottom edge.
+- x0 < x1 and y0 < y1.
+- The box covers the table body including headers, but NOT the caption.
+- Use one box per table. Use multiple boxes only if a single table is visually split into separate regions on this page (e.g. continued in a second column).
+
+## Output
+- Return only JSON matching the schema, with no commentary or markdown fences.
+- If the page has no tables, return {"tables": []}.

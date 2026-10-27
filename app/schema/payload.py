@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ModelParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["openai", "anthropic"]
+    provider: Literal["openai", "anthropic", "google"]
     model: str
     temperature: Optional[float] = None
     top_p: Optional[float] = None
@@ -33,18 +33,20 @@ class ModelParameters(BaseModel):
     
 class ExtractionTypes(Enum):
     eov = "eov"
-    table = "table"
     metadata = "metadata"
+    table = "table"
 
 class ExtractionPayload(BaseModel):
-    model: list[ModelParameters] = Field(..., description="List of model parameters for the extraction process.")
+    model: Optional[list[ModelParameters]] = Field(
+    default=None, description="Default model parameters (optional)."
+    )
     text: Optional[str] = Field(default=None, description="The text content to be processed.")
     runs: Optional[int] = Field(default=1, description="Number of times to run the extraction for robustness")
     seeds: Optional[List[int]] = None
     hash: str
     source: Optional[str] = Field(default=None, description="The source of the document batch.")
-    dpi: Optional[int] = Field(default=300, description="The DPI of the document, if applicable.")
-    pages: Optional[List[int]] = Field(default=None, description="List of page numbers to process, if applicable.")
+    dpi: Optional[int] = Field(default=150, description="The DPI of the document, if applicable.")
+    pages: Optional[dict[int, ModelParameters]] = Field(default=None, description="...")
 
 
 

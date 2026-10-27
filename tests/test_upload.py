@@ -59,5 +59,6 @@ async def test_upload(app, client):
                 elif line.startswith("data:"):
                     logger.info(f"Received event: {event_name}")
                     data = json.loads(line.split(":", 1)[1])
-                    logger.info(f"Data: {data['pages'].keys()}")
+                    assert isinstance(data, dict)
+                    logger.info(f"Received data: {data.keys()}")
     

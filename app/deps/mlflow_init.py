@@ -14,20 +14,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.info(mlflow.__version__)
-
-def setup_mlflow()-> MlflowClient:
-    
-    uri = os.getenv("MLFLOW_TRACKING_URI")
-    if uri:
-        mlflow.set_tracking_uri(uri)
-    mlflow.set_experiment("observia_extraction")
-    # mlflow.langchain.autolog(log_traces=True, silent=False)
-    
-    
-    # mlflow.openai.autolog()
-    client=MlflowClient()
-    logger.info(f"MLflow client set up with tracking URI: {mlflow.get_tracking_uri()}")
-    logger.info("MLFLOW_TRACKING_URI env=%s", os.getenv("MLFLOW_TRACKING_URI"))
-    logger.info("MLFLOW_REGISTRY_URI env=%s", os.getenv("MLFLOW_REGISTRY_URI"))
-    logger.info("mlflow.get_tracking_uri()=%s", mlflow.get_tracking_uri())
-    return client
+logger.info("MLflow initialized.")
+def setup_mlflow() -> MlflowClient:
+    uri = os.environ["MLFLOW_TRACKING_URI"]
+    mlflow.set_tracking_uri(uri)                      # global: used by autolog and traces
+    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT", "observia_extraction"))
+    # mlflow.langchain.autolog()
+    return MlflowClient(tracking_uri=uri)
