@@ -15,4 +15,5 @@ dependencies = [
     "pandas>=3.0.3",
     "pymupdf>=1.28",
     "pymupdf4llm>=1.28",
+    "requests>=2.34.2",
 ]

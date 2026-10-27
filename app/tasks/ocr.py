@@ -3,20 +3,77 @@ import json
 import logging
 import pymupdf
 import pymupdf4llm
-
+import requests
+import redis 
 from app.celery_app import celery_app
-from app.tasks.cache import get_pdf_bytes
-
+import os
+import json 
+from urllib.parse import urlparse
+from app.celery_app import redis_client as r
 logger = logging.getLogger(__name__)
+ttl=60*60*24  # 24 hours
+
+def save_page(doc_id, page, layout):
+    key = f"doc:{{{doc_id}}}:page:{page}"
+    pipe = r.pipeline(transaction=True)
+    pipe.expire(key, ttl)
+    pipe.hset(key, mapping={"doc_id": doc_id, "page": page, "layout": json.dumps(layout)})
+    pipe.zadd(f"doc:{{{doc_id}}}:pages", {key: page})
+    pipe.sadd("docs", doc_id)          # optional: global list of docs
+    pipe.execute()
+
+from pathlib import Path
+from urllib.parse import urlparse
+
+LOCAL_STORAGE_DIR = Path(os.environ.get("LOCAL_STORAGE_DIR", "/data/pdfs")).resolve()
+
+
+def _check_pdf(data: bytes, source: str) -> bytes:
+    if not data.startswith(b"%PDF"):
+        raise ValueError(f"Not a PDF: {source}")
+    return data
+
+
+def read_pdf_from_volume(path_str: str) -> bytes:
+    path = Path(path_str).resolve()
+    # Only allow files inside the storage dir (protects against path traversal)
+    if not path.is_relative_to(LOCAL_STORAGE_DIR):
+        raise ValueError(f"Path outside storage dir: {path}")
+    if not path.is_file():
+        raise FileNotFoundError(f"PDF not found on volume: {path}")
+    return _check_pdf(path.read_bytes(), str(path))
+
+
+def fetch_pdf_bytes(url: str) -> bytes:
+    response = requests.get(url, timeout=(5, 60))  # (connect, read) seconds
+    response.raise_for_status()
+    return _check_pdf(response.content, url)
+
+
+def load_pdf_bytes(source: dict) -> bytes:
+    url = source.get("url") or ""
+    path = source.get("path")
+    logger.info(f"Loading PDF from source: {source}")
+    if source.get("storage") == "local" or path or url.startswith("file://"):
+        return read_pdf_from_volume(path or urlparse(url).path)
+
+    if url.startswith(("http://", "https://")):
+        return fetch_pdf_bytes(url)
+
+    raise ValueError(f"Unsupported PDF source: {source}")
+
 
 
 @celery_app.task(bind=True, name="app.tasks.ocr.pdf")
-def get_pdf_layout(self, url: str, hash: str, pages: list,
+def get_pdf_layout(self,  hash: str, pages: list, s3_url: dict,
                    total_pages: int, ocr: bool = False) -> dict:
     page_indexes = [page - 1 for page in pages]
     doc = None
     try:
-        pdf_bytes = get_pdf_bytes(hash, url)
+        url=s3_url.get("url")
+        if not url:
+            raise ValueError("S3 URL is missing in the payload.")
+        pdf_bytes = load_pdf_bytes(s3_url)
         doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
         del pdf_bytes  # the document holds its own data from here on
 
@@ -31,8 +88,11 @@ def get_pdf_layout(self, url: str, hash: str, pages: list,
         layout_pages = json.loads(md).get("pages", []) or []
         del md
 
+        # for i, page in enumerate(layout_pages):
+        #     save_page(hash, i + 1, page)
+
         return {
-            "url": url,
+           
             "status": "SUCCESS",
             "type": "pymupdf4llm",
             "hash": hash,
@@ -40,7 +100,7 @@ def get_pdf_layout(self, url: str, hash: str, pages: list,
         }
 
     except Exception:
-        logger.exception("Error processing PDF %s", url)
+        logger.exception("Error processing PDF %s", hash)
         raise
 
     finally:
@@ -48,3 +108,5 @@ def get_pdf_layout(self, url: str, hash: str, pages: list,
             doc.close()
         pymupdf.TOOLS.store_shrink(100)  # empty MuPDF's internal cache
         gc.collect()
+
+

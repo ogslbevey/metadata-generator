@@ -21,7 +21,7 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 ENV CELERY_APP=app.celery_app \
-    CELERY_QUEUES=ocr,render \
+    CELERY_QUEUES=ocr \
     CELERY_LOGLEVEL=info 
 
 
@@ -30,8 +30,7 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["sh", "-c", "uv run celery -A ${CELERY_APP} worker \
     -Q ${CELERY_QUEUES} \
     --pool=prefork \
-    # --concurrency=${CELERY_CONCURRENCY} \
-    --autoscale=${AUTOSCALE_MIN},${AUTOSCALE_MAX} \
+    --concurrency=${CELERY_CONCURRENCY} \
     --loglevel=${CELERY_LOGLEVEL} \
     --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD} \
     --max-memory-per-child=${CELERY_MAX_MEMORY_PER_CHILD} \
