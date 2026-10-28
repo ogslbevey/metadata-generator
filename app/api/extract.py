@@ -222,9 +222,10 @@ async def extract(req: Request, extraction_type: ExtractionTypes, payload: Extra
         response = {"type": extraction_type.value, "results": by_page}
     else:
         flat = [item for sublist in results for item in sublist]
+        df = pd.json_normalize(flat)
         response = {
             "type": extraction_type.value,
-            "results": pd.DataFrame(flat).to_dict(orient="split"),
+            "results": df.to_dict(orient="split"),
         }
 
     if urls is not None:

@@ -174,7 +174,7 @@
         },
         "openai/gpt-4.1-mini": {
             "context_window": 1047576,
-            "enabled": true,
+            "enabled": false,
             "max_output_tokens": 32768,
             "image_input": true,
             "tiers": [
