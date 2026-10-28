@@ -9,7 +9,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from mlflow import MlflowClient
 from app.api.list_models import get_pricing
-from app.schema.eov import EOVWithCitations
+from app.schema.eov import EOVWithCitations,_confidence_weight, _confidence_label
 from app.schema.metadata import MetadataSchemaCIOOS
 from app.schema.payload import ExtractionPayload, ExtractionTypes, ModelParameters
 from app.schema.table import TablesResult
@@ -220,6 +220,27 @@ async def extract(req: Request, extraction_type: ExtractionTypes, payload: Extra
         for r in results:
             by_page.update({str(page): value for page, value in r.items()})
         response = {"type": extraction_type.value, "results": by_page}
+
+    elif extraction_type == ExtractionTypes.eov:
+        flat = [item for sublist in results for item in sublist]
+        df = pd.json_normalize(flat)
+        if not df.empty:
+            df["confiance_score"] = df["confiance"].map(_confidence_weight)
+            df["confiance_moyenne"] = (
+                df.groupby("eov")["confiance_score"].transform("mean").round(2)
+            )
+            df["confiance_moyenne_label"] = (
+                df["confiance_moyenne"].round().astype(int).map(_confidence_label)
+            )
+            df = df.sort_values(
+                ["confiance_moyenne", "eov", "confiance_score"],
+                ascending=[False, True, False],
+                kind="stable",
+            ).reset_index(drop=True)
+        response = {
+            "type": extraction_type.value,
+            "results": df.to_dict(orient="split"),
+        }
     else:
         flat = [item for sublist in results for item in sublist]
         df = pd.json_normalize(flat)
