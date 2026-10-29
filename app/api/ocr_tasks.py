@@ -16,6 +16,19 @@ KEEP_ALIVE_SECONDS = 15
 POLL_SECONDS = 1
 router = APIRouter(prefix="/ocr_tasks", tags=["ocr_tasks"])
 
+async def _fetch_pages(redis_client, doc_hash: str, page_numbers: list[int]) -> dict[int, dict]:
+    """Read saved page layouts from Redis in one round trip."""
+    async with redis_client.pipeline(transaction=False) as pipe:  # read-only, no MULTI needed
+        for n in page_numbers:
+            pipe.get(f"doc:{doc_hash}:page:{n}")
+        values = await pipe.execute()
+
+    pages = {n: json.loads(v) for n, v in zip(page_numbers, values) if v is not None}
+    missing = set(page_numbers) - pages.keys()
+    if missing:
+        logger.warning("Pages missing in Redis for %s: %s", doc_hash, sorted(missing))
+    return pages
+
 
 def _sse(
     event: str,
@@ -82,78 +95,69 @@ def _pages_from_result(result: dict) -> dict[int, dict]:
         logger.warning("No pages in task result. result keys=%s, layout type=%s",
                        list(result.keys()), type(layout).__name__)
     return out
+MAX_WAIT_SECONDS = 15 * 60
+
+
 
 
 @router.get("/task_status")
-async def get_group_status(req: Request, group_id: str):
-    gr = await asyncio.to_thread(GroupResult.restore, group_id, app=celery_app)
+async def get_pages_status(req: Request, hash: str, total_pages: int):
+    redis_client = req.app.state.redis_client
+    index_key = f"doc:{hash}:pages"
 
     async def event_generator():
-        # Always answer with SSE so the browser's EventSource can read it
-        if gr is None:
-            yield _sse("not_found", {"group_id": group_id})
-            return
-
-        total = len(gr.results)
-        sent: set[str] = set()
+        sent: set[int] = set()
         pages_data: dict[int, dict] = {}
-        doc_hash: str | None = None
-        last_ping = time.monotonic()
+        started = last_ping = time.monotonic()
 
-        yield _sse("start", {"group_id": group_id, "total": total})
+        yield _sse("start", {"hash": hash, "total": total_pages})
 
-        while len(sent) < total:
+        while len(sent) < total_pages:
             if await req.is_disconnected():
                 return
+            if time.monotonic() - started > MAX_WAIT_SECONDS:
+                yield _sse("timeout", {"hash": hash, "completed": len(sent), "total": total_pages})
+                return
 
-            for task in gr.results:
-                if task.id in sent:
-                    continue
-                if not await asyncio.to_thread(task.ready):
-                    continue
+            # Index and count in one round trip
+            async with redis_client.pipeline(transaction=False) as pipe:
+                pipe.zrange(index_key, 0, -1, withscores=True)
+                pipe.zcard(index_key)
+                entries, _count = await pipe.execute()
 
-                sent.add(task.id)
-                ok, result = await asyncio.to_thread(_read_result, task)
-
-                if ok and isinstance(result, dict) and "layout" in result:
-                    doc_hash = doc_hash or result.get("hash")
-                    task_pages = _pages_from_result(result)
-                    pages_data.update(task_pages)
-                    yield _sse("task", {
-                        "task_id": task.id,
-                        "pages": task_pages,
+            new = [(key, int(score)) for key, score in entries if int(score) not in sent]
+            if new:
+                values = await redis_client.mget([key for key, _ in new])
+                for (_, n), value in zip(new, values):
+                    if value is None:  # expired between ZRANGE and MGET
+                        continue
+                    page = json.loads(value)
+                    sent.add(n)
+                    pages_data[n] = page
+                    yield _sse("page", {
+                        "page_number": n,
+                        "page": page,
                         "completed": len(sent),
-                        "total": total,
-                        "hash": doc_hash,
-                    }, event_id=task.id)
-                else:
-                    yield _sse("task_error", {
-                        "task_id": task.id,
-                        "error": str(result),
-                        "completed": len(sent),
-                        "total": total,
-                    }, event_id=task.id)
+                        "total": total_pages,
+                    }, event_id=f"{hash}:{n}")
+                continue  # check again right away, more pages may be ready
 
-            if len(sent) < total:
-                if time.monotonic() - last_ping >= KEEP_ALIVE_SECONDS:
-                    yield ": keep-alive\n\n"
-                    last_ping = time.monotonic()
-                await asyncio.sleep(POLL_SECONDS)
+            if time.monotonic() - last_ping >= KEEP_ALIVE_SECONDS:
+                yield ": keep-alive\n\n"
+                last_ping = time.monotonic()
+            await asyncio.sleep(POLL_SECONDS)
 
         index_error = None
-        if doc_hash is not None:
-            try:
-                await _index_document(req.app.state.opensearch_client, pages_data, doc_hash)
-            except Exception as e:  # report it instead of killing the stream silently
-                logger.exception("Indexing failed for %s", doc_hash)
-                index_error = str(e)
+        try:
+            await _index_document(req.app.state.opensearch_client, pages_data, hash)
+        except Exception as e:
+            logger.exception("Indexing failed for %s", hash)
+            index_error = str(e)
 
-        # Pages were already sent one task at a time, so they are not repeated here
         yield _sse("complete", {
-            "group_id": group_id,
-            "total": total,
-            "hash": doc_hash,
-            "indexed": doc_hash is not None and index_error is None,
+            "hash": hash,
+            "total": total_pages,
+            "indexed": index_error is None,
             "error": index_error,
         })
 
@@ -162,3 +166,88 @@ async def get_group_status(req: Request, group_id: str):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# @router.get("/task_status")
+# async def get_group_status(req: Request, group_id: str):
+#     gr = await asyncio.to_thread(GroupResult.restore, group_id, app=celery_app)
+
+#     async def event_generator():
+#         # Always answer with SSE so the browser's EventSource can read it
+#         if gr is None:
+#             yield _sse("not_found", {"group_id": group_id})
+#             return
+
+#         total = len(gr.results)
+#         sent: set[str] = set()
+#         pages_data: dict[int, dict] = {}
+#         doc_hash: str | None = None
+#         last_ping = time.monotonic()
+
+#         yield _sse("start", {"group_id": group_id, "total": total})
+
+#         while len(sent) < total:
+#             if await req.is_disconnected():
+#                 return
+
+#             for task in gr.results:
+#                 if task.id in sent:
+#                     continue
+#                 if not await asyncio.to_thread(task.ready):
+#                     continue
+
+#                 sent.add(task.id)
+#                 ok, result = await asyncio.to_thread(_read_result, task)
+
+#                 if ok and isinstance(result, dict) and "layout" in result:
+#                     doc_hash = doc_hash or result.get("hash")
+#                     task_pages = _pages_from_result(result)
+#                     pages_data.update(task_pages)
+#                     yield _sse("task", {
+#                         "task_id": task.id,
+#                         "pages": task_pages,
+#                         "completed": len(sent),
+#                         "total": total,
+#                         "hash": doc_hash,
+#                     }, event_id=task.id)
+#                 else:
+#                     yield _sse("task_error", {
+#                         "task_id": task.id,
+#                         "error": str(result),
+#                         "completed": len(sent),
+#                         "total": total,
+#                     }, event_id=task.id)
+
+#             if len(sent) < total:
+#                 if time.monotonic() - last_ping >= KEEP_ALIVE_SECONDS:
+#                     yield ": keep-alive\n\n"
+#                     last_ping = time.monotonic()
+#                 await asyncio.sleep(POLL_SECONDS)
+
+#         index_error = None
+#         if doc_hash is not None:
+#             try:
+#                 await _index_document(req.app.state.opensearch_client, pages_data, doc_hash)
+#             except Exception as e:  # report it instead of killing the stream silently
+#                 logger.exception("Indexing failed for %s", doc_hash)
+#                 index_error = str(e)
+
+#         # Pages were already sent one task at a time, so they are not repeated here
+#         yield _sse("complete", {
+#             "group_id": group_id,
+#             "total": total,
+#             "hash": doc_hash,
+#             "indexed": doc_hash is not None and index_error is None,
+#             "error": index_error,
+#         })
+
+#     return StreamingResponse(
+#         event_generator(),
+#         media_type="text/event-stream",
+#         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+#     )
+
+
+
+
+

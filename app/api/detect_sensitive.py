@@ -13,22 +13,25 @@ from app.utils.sensitive_utils import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/detect", tags=["sensitive"])
+SensitiveResults = dict[str, list[str] | None]
+
+
 
 
 class SensitiveRequest(BaseModel):
-    hash: Optional[str] = None
     text:Optional[str] = None
+    model_name: Optional[str] = None
 
 @router.post("/sensitive_info")
 async def detect_sensitive_info(request: Request, payload: SensitiveRequest):
     text = payload.text
-    hash = payload.hash
+   
+    model_name = payload.model_name
     if not text and not hash:
         raise HTTPException(status_code=400, detail="Either 'text' or 'hash' must be provided.")
-    if text:
-        return {
-            "phone_numbers": detect_phone_numbers(text),
-            "email_addresses": detect_email_addresses(text),
-            "postal_codes": detect_canadian_postal_codes(text),
-        }
-    
+    found = {
+        "TELEPHONENUM": detect_phone_numbers(text),
+        "EMAIL": detect_email_addresses(text),
+        "ZIPCODE": detect_canadian_postal_codes(text),
+    }
+    return {label: values for label, values in found.items() if values}
