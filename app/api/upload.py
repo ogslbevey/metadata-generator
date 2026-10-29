@@ -54,7 +54,18 @@ def send_ocr_tasks_for_pdf(
 
 
 
+async def _fetch_pages(redis_client, doc_hash: str, page_numbers: list[int]) -> dict[int, dict]:
+    """Read saved page layouts from Redis in one round trip."""
+    async with redis_client.pipeline(transaction=False) as pipe:  # read-only, no MULTI needed
+        for n in page_numbers:
+            pipe.get(f"doc:{doc_hash}:page:{n}")
+        values = await pipe.execute()
 
+    pages = {n: json.loads(v) for n, v in zip(page_numbers, values) if v is not None}
+    missing = set(page_numbers) - pages.keys()
+    if missing:
+        logger.warning("Pages missing in Redis for %s: %s", doc_hash, sorted(missing))
+    return pages
 
 
 @router.post("/pdf")
@@ -111,14 +122,25 @@ async def upload_pdf(
         end_page = total_pages
     if not (1 <= start_page <= end_page <= total_pages):
         raise HTTPException(status_code=400, detail=f"Invalid page range {start_page}-{end_page} (document has {total_pages} pages).")
-    batches = [
-                list(range(i, min(i + pages_per_batch, end_page + 1)))
-                for i in range(start_page, end_page + 1, pages_per_batch)
-            ]
-    try:
-        group_id_ocr=send_ocr_tasks_for_pdf(hash_=hash_sha1, batches=batches,total_pages=total_pages,s3_url=s3_url, ocr=ocr_force)
-        return {"ocr_task": group_id_ocr,"hash": hash_sha1,"total_pages": total_pages,"s3_url":s3_url.get("url"),"key": s3_url.get("key")}
+    
 
+    requested = list(range(start_page, end_page + 1))
+    # ocr_force asks for a fresh OCR run, so cached text-extraction results don't count
+    cached = {} if ocr_force else await  _fetch_pages(req.app.state.redis_client, hash_sha1, requested)
+    missing = [p for p in requested if p not in cached]
+
+    response = {"hash": hash_sha1, "total_pages": total_pages,
+                "s3_url": s3_url.get("url"), "key": s3_url.get("key"), "pages": cached}
+    try:
+        if not missing:
+            logger.info(f"All {len(requested)} pages cached for {document_key}, skipping OCR")
+            return {**response, "ocr_task": None}
+
+        batches = [missing[i:i + pages_per_batch] for i in range(0, len(missing), pages_per_batch)]
+        group_id_ocr = send_ocr_tasks_for_pdf(hash_=hash_sha1, batches=batches,
+                                              total_pages=total_pages, s3_url=s3_url, ocr=ocr_force)
+        return {**response, "ocr_task": group_id_ocr}
     finally:
         logger.info(f"Closing document: {document_key}")
         doc.close()
+
