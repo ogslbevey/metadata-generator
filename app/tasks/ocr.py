@@ -1,31 +1,47 @@
+
+from app.celery_app import celery_app
+import os
+import json 
+from urllib.parse import urlparse
+from app.celery_app import redis_client as r
 import gc
 import json
 import logging
 import pymupdf
 import pymupdf4llm
 import requests
-import redis 
-from app.celery_app import celery_app
-import os
-import json 
-from urllib.parse import urlparse
+from pathlib import Path
 from app.celery_app import redis_client as r
 logger = logging.getLogger(__name__)
-ttl=60*60*24  # 24 hours
-
-def save_page(doc_id, page, layout):
-    key = f"doc:{{{doc_id}}}:page:{page}"
-    pipe = r.pipeline(transaction=True)
-    pipe.expire(key, ttl)
-    pipe.hset(key, mapping={"doc_id": doc_id, "page": page, "layout": json.dumps(layout)})
-    pipe.zadd(f"doc:{{{doc_id}}}:pages", {key: page})
-    pipe.sadd("docs", doc_id)          # optional: global list of docs
-    pipe.execute()
-
-from pathlib import Path
-from urllib.parse import urlparse
-
+logger.setLevel(logging.INFO)
+DOC_TTL_SECONDS = 60 * 60 * 24
 LOCAL_STORAGE_DIR = Path(os.environ.get("LOCAL_STORAGE_DIR", "/data/pdfs")).resolve()
+
+
+def _page_key(doc_hash: str, page: int) -> str:
+    return f"doc:{doc_hash}:page:{page}"
+
+
+def _index_key(doc_hash: str) -> str:
+    return f"doc:{doc_hash}:pages"
+
+
+def save_pages(doc_hash: str, page_layouts: list[dict]) -> list[int]:
+    index_key = _index_key(doc_hash)
+    pipe = r.pipeline(transaction=True)
+    saved = []
+    for layout in page_layouts:
+        page = layout["page_number"]
+        key = _page_key(doc_hash, page)
+        pipe.set(key, json.dumps(layout), ex=DOC_TTL_SECONDS)  # value + TTL atomically
+        pipe.zadd(index_key, {key: page})                       # sorted by page number
+        saved.append(page)
+    pipe.expire(index_key, DOC_TTL_SECONDS)                     # after zadd, so the key exists
+    pipe.execute()
+    logger.info("Saved %d pages for doc %s: %s", len(saved), doc_hash, saved)
+    return saved
+
+
 
 
 def _check_pdf(data: bytes, source: str) -> bytes:
@@ -87,9 +103,7 @@ def get_pdf_layout(self,  hash: str, pages: list, s3_url: dict,
         )
         layout_pages = json.loads(md).get("pages", []) or []
         del md
-
-        # for i, page in enumerate(layout_pages):
-        #     save_page(hash, i + 1, page)
+        saved = save_pages(hash, layout_pages)
 
         return {
            
