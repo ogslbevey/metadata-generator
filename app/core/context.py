@@ -19,6 +19,7 @@ from app.deps.redis_init import close_redis, init_redis
 from app.tasks import celery_app
 
 load_dotenv()  # Load environment variables from .env file
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -54,22 +55,21 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
             resources.s3_client = await stack.enter_async_context(
             session.client(
                 "s3",
-                endpoint_url=os.getenv("AWS_ENDPOINT_URL"),  # https://bucket-production-a541.up.railway.app
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=os.getenv("AWS_REGION", "us-east-1"),
+                endpoint_url=os.environ.get("AWS_ENDPOINT_URL"),
+                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+                region_name=os.environ.get("AWS_REGION", "us-east-1"),
                 config=AioConfig(
-                signature_version="s3v4",
+                    signature_version="s3v4",
                     s3={"addressing_style": "path"},
                     request_checksum_calculation="when_required",
                     response_checksum_validation="when_required",
-                    connect_timeout=5,
-                    read_timeout=30,
-                    retries={"max_attempts": 3},
                 ),
+            ) 
             )
-            )
-            # --- HTTP client ---
+            BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+            logger.info("S3 client initialized for bucket %s", BUCKET_NAME)
+            
             resources.http_client = httpx.AsyncClient(
                 timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=30.0),
                 limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
@@ -88,7 +88,7 @@ async def resource_lifespan(app: Optional[FastAPI] = None):
                 verify_certs=False,  # demo self-signed cert; set True + ca_certs in prod
                 ssl_show_warn=False,
             )
-            logger.info(await resources.opensearch_client.info())
+            # logger.info(await resources.opensearch_client.info())
 
             if app is not None:
                 app.state.s3_client = resources.s3_client

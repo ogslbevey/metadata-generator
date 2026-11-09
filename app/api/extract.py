@@ -170,7 +170,7 @@ async def run_chain(
             chain = get_chat_model(params).with_structured_output(schema, include_raw=True)
             async with LLM_SEMAPHORE:  # hold the slot only for the LLM call
                 raw_result = await chain.ainvoke(messages)
-                
+                logger.info("Raw result: %s", raw_result)
                 usage_metadata=raw_result.get("usage_metadata", {})
                 parsed=raw_result.get("parsed", {})
                 logger.info("Parsed result: %s", parsed)
