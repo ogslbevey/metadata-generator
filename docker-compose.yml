@@ -1,0 +1,53 @@
+# Two services: Garage (S3 storage) and its Web UI.
+# Locally:  cp .env.example .env  (fill in values)  &&  docker compose up -d --build
+# Railway:  each service maps to one Railway service (see README-railway.md).
+services:
+  garage:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET in .env}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?set GARAGE_ADMIN_TOKEN in .env}
+      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY:?set GARAGE_ACCESS_KEY in .env}
+      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY:?set GARAGE_SECRET_KEY in .env}
+      GARAGE_BUCKET: ${GARAGE_BUCKET:-ckan}
+      GARAGE_CAPACITY: ${GARAGE_CAPACITY:-1G}
+      GARAGE_PUBLIC_DOMAIN: ${GARAGE_PUBLIC_DOMAIN:-}
+    volumes:
+      # ONE volume for meta + data: Railway allows only one volume per service.
+      - garage-data:/var/lib/garage
+    ports:
+      - "3900:3900"   # S3 API
+      - "3902:3902"   # S3 website
+      - "3903:3903"   # admin API
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3903/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  webui:
+    build:
+      context: ./webui
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      PORT: "3909"
+      # On Railway use http://garage.railway.internal:3903 / :3900 instead
+      API_BASE_URL: ${WEBUI_API_BASE_URL:-http://garage:3903}
+      S3_ENDPOINT_URL: ${WEBUI_S3_ENDPOINT_URL:-http://garage:3900}
+      S3_REGION: garage
+      API_ADMIN_KEY: ${GARAGE_ADMIN_TOKEN}
+      # username:bcrypt-hash  (htpasswd -nbBC 10 admin 'password')
+      AUTH_USER_PASS: ${WEBUI_AUTH_USER_PASS:?set WEBUI_AUTH_USER_PASS in .env}
+    ports:
+      - "3909:3909"
+
+volumes:
+  garage-data:
